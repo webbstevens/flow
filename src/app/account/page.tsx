@@ -1,14 +1,21 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getWorkspaceId } from "@/lib/session";
+import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { KeyManager } from "./KeyManager";
 
 export default async function AccountPage() {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/login");
+  }
+
   const workspaceId = await getWorkspaceId();
   if (!workspaceId) {
-    // First visit — bounce through the init route handler which can set cookies.
+    // Edge case: signed in but no workspace yet (shouldn't normally happen
+    // because /auth/callback creates one). Bounce through init to create it.
     redirect("/account/init");
   }
+
   const keys = await prisma.apiKey.findMany({
     where: { workspaceId, revokedAt: null },
     orderBy: { createdAt: "desc" },
@@ -21,10 +28,13 @@ export default async function AccountPage() {
     },
   });
 
-  // Count usage roughly by counting products created by the workspace's seller
-  // (For now, we don't have a workspace->seller link, so show total classifications
-  // via a placeholder until that's wired up.)
-  const classificationsThisMonth = 0;
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ??
+    (user.user_metadata?.name as string | undefined) ??
+    user.email ??
+    "Workspace";
+  const initial = displayName.charAt(0).toUpperCase();
+  const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
 
   return (
     <main className="max-w-2xl mx-auto px-6 pt-4 pb-10">
@@ -35,23 +45,29 @@ export default async function AccountPage() {
         <h1 className="font-serif italic text-[2.25rem] leading-[1.1] mt-3 text-primary">
           Workspace
         </h1>
-        <p className="text-xs text-primary/50 mt-3 font-mono truncate">
-          {workspaceId}
-        </p>
       </header>
 
       {/* Profile card */}
       <section className="bg-surface-lowest rounded-3xl p-8 mb-6">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-secondary text-on-secondary flex items-center justify-center">
-            <span className="font-serif italic text-2xl">W</span>
-          </div>
-          <div>
-            <p className="font-sans text-lg font-medium text-primary">
-              My Workspace
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt=""
+              className="w-14 h-14 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-secondary text-on-secondary flex items-center justify-center">
+              <span className="font-serif italic text-2xl">{initial}</span>
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="font-sans text-lg font-medium text-primary truncate">
+              {displayName}
             </p>
-            <p className="text-xs text-primary/50 mt-0.5">
-              Workspace · cookie-scoped session
+            <p className="text-xs text-primary/50 mt-0.5 truncate">
+              {user.email}
             </p>
           </div>
         </div>
@@ -67,17 +83,11 @@ export default async function AccountPage() {
             Classifications this month
           </p>
           <p className="font-serif italic text-xl text-primary">
-            {classificationsThisMonth}{" "}
-            <span className="text-primary/40">/ 5,000</span>
+            0 <span className="text-primary/40">/ 5,000</span>
           </p>
         </div>
         <div className="h-2 bg-surface-container rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full"
-            style={{
-              width: `${Math.min(100, (classificationsThisMonth / 5000) * 100)}%`,
-            }}
-          />
+          <div className="h-full bg-primary rounded-full" style={{ width: "0%" }} />
         </div>
       </section>
     </main>

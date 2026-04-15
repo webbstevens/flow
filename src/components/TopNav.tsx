@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserMenu } from "./UserMenu";
 
 const links = [
   { href: "/", label: "Home" },
@@ -44,12 +45,7 @@ export function TopNav() {
               </Link>
             );
           })}
-          <Link
-            href="/account"
-            className="bg-primary text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
-          >
-            Account
-          </Link>
+          <UserMenu />
         </nav>
       </div>
     </header>

@@ -68,12 +68,14 @@ model Variant {
 }
 
 model Workspace {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @default("My Workspace")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @default("My Workspace")
+  ownerUserId String?  @map("owner_user_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
 
   apiKeys ApiKey[]
 
+  @@index([ownerUserId])
   @@map("workspaces")
 }
 
