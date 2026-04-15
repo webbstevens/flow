@@ -14,18 +14,21 @@ export async function POST(request: NextRequest) {
 
     const { variants, ...productData } = parsed.data;
 
-    const product = await prisma.$transaction(async (tx) => {
-      const created = await tx.product.create({
-        data: {
-          ...productData,
-          variants: {
-            create: variants,
+    const product = await prisma.$transaction(
+      async (tx) => {
+        const created = await tx.product.create({
+          data: {
+            ...productData,
+            variants: {
+              create: variants,
+            },
           },
-        },
-        include: { variants: true },
-      });
-      return created;
-    });
+          include: { variants: true },
+        });
+        return created;
+      },
+      { maxWait: 10_000, timeout: 15_000 }
+    );
 
     return Response.json(product, { status: 201 });
   } catch (err) {
