@@ -31,7 +31,18 @@ export function generateOpenApiSpec() {
       { url: "/", description: "This deployment" },
       { url: "http://localhost:3000", description: "Local development" },
     ],
-    security: [], // Auth deferred to a future phase
+    security: [],
+    components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "sk_flow_...",
+          description:
+            "Flow API key issued from the /account page. Pass as `Authorization: Bearer sk_flow_...`",
+        },
+      },
+    },
     paths: {
       "/api/v1/products": {
         post: {
@@ -40,6 +51,7 @@ export function generateOpenApiSpec() {
           description:
             "Transactionally creates a parent product and its child variants.",
           tags: ["Products"],
+          security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -54,6 +66,7 @@ export function generateOpenApiSpec() {
               },
             },
             "400": errorResponse("Validation error"),
+            "401": errorResponse("Missing or invalid API key"),
             "500": errorResponse("Internal server error"),
           },
         },
@@ -63,6 +76,7 @@ export function generateOpenApiSpec() {
           description:
             "Paginated list of products with nested variants. Excludes soft-deleted.",
           tags: ["Products"],
+          security: [{ BearerAuth: [] }],
           requestParams: {
             query: z.object({
               page: z.coerce.number().int().min(1).default(1).optional(),
@@ -89,6 +103,7 @@ export function generateOpenApiSpec() {
           description:
             "Partial update. Automatically sets requires_review to false.",
           tags: ["Products"],
+          security: [{ BearerAuth: [] }],
           requestParams: {
             path: z.object({
               id: z.string().uuid(),

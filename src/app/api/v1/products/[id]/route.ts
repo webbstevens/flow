@@ -2,12 +2,14 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
 import { updateProductSchema } from "@/lib/validation";
+import { ApiKeyError, requireApiKey } from "@/lib/api-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireApiKey(request);
     const { id } = await params;
 
     const body = await request.json();
@@ -36,6 +38,7 @@ export async function PATCH(
 
     return Response.json(product);
   } catch (err) {
+    if (err instanceof ApiKeyError) return errorResponse(err.message, err.status);
     const message =
       err instanceof Error ? err.message : "Internal server error";
     return errorResponse(message, 500);

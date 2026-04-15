@@ -2,9 +2,11 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
 import { createProductSchema } from "@/lib/validation";
+import { ApiKeyError, requireApiKey } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    await requireApiKey(request);
     const body = await request.json();
     const parsed = createProductSchema.safeParse(body);
 
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json(product, { status: 201 });
   } catch (err) {
+    if (err instanceof ApiKeyError) return errorResponse(err.message, err.status);
     const message =
       err instanceof Error ? err.message : "Internal server error";
     return errorResponse(message, 500);
@@ -40,6 +43,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    await requireApiKey(request);
     const searchParams = request.nextUrl.searchParams;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(
@@ -69,6 +73,7 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total },
     });
   } catch (err) {
+    if (err instanceof ApiKeyError) return errorResponse(err.message, err.status);
     const message =
       err instanceof Error ? err.message : "Internal server error";
     return errorResponse(message, 500);
