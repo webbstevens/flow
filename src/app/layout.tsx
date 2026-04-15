@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Newsreader } from "next/font/google";
 import "./globals.css";
+import { SiteShell } from "@/components/SiteShell";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -10,11 +11,13 @@ const inter = Inter({
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
-  title: "Flow — Snap. Classify. Ship.",
-  description: "Photo-driven HS code classification for cross-border commerce.",
+  title: "Flow — Headless, API-First, Developer-Ready",
+  description:
+    "The API-first cross-border logistics engine. Normalize catalog data, classify products, and sync to any platform.",
 };
 
 export const viewport: Viewport = {
@@ -34,7 +37,15 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-surface-low">
+        <SiteShell>{children}</SiteShell>
+      </body>
     </html>
   );
 }

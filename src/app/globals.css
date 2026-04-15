@@ -5,22 +5,26 @@
   --surface-low: #f3f4f6;        /* Base canvas */
   --surface-lowest: #ffffff;     /* Cards */
   --surface-container: #edeef0;  /* Sub-sections */
+  --surface-container-high: #e7e8ea;
   --primary: #1f2937;            /* Authority */
   --secondary: #86efac;          /* Growth */
   --on-secondary: #007241;
   --accent: #7c3aed;             /* Intelligence */
   --foreground: #1f2937;
+  --on-surface-variant: #44474c;
 }
 
 @theme inline {
   --color-surface-low: var(--surface-low);
   --color-surface-lowest: var(--surface-lowest);
   --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
   --color-on-secondary: var(--on-secondary);
   --color-accent: var(--accent);
   --color-foreground: var(--foreground);
+  --color-on-surface-variant: var(--on-surface-variant);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-newsreader);
 }
@@ -29,6 +33,15 @@ body {
   background: var(--surface-low);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Material Symbols icon styling */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* "Flow" indicator: animated gradient line for active processing */
@@ -46,4 +59,9 @@ body {
   );
   background-size: 200% 100%;
   animation: flow-shimmer 1.6s linear infinite;
+}
+
+/* Safe area padding for iOS bottom nav */
+.pb-safe {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
 }
