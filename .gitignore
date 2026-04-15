@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Local-only docs and design assets (not shipped with code)
+/BackgroundContext
+/frontend mocks

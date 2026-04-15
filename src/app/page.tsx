@@ -1,65 +1,203 @@
-import Image from "next/image";
+"use client";
+
+import { useRef, useState } from "react";
+
+interface Classification {
+  hs_code: string;
+  mid_code: string;
+  confidence_score: number;
+  requires_review: boolean;
+  ai_attributes: Record<string, string>;
+}
 
 export default function Home() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<Classification | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageDataUrl(reader.result as string);
+      setResult(null);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleClassify() {
+    if (!imageDataUrl) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/v1/compliance/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: [imageDataUrl] }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.message || "Classification failed");
+      }
+      setResult(json.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function reset() {
+    setImageDataUrl(null);
+    setResult(null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="flex-1 flex flex-col px-6 pt-12 pb-10 max-w-xl mx-auto w-full">
+      {/* Hero */}
+      <header className="mb-10">
+        <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-accent">
+          Flow · Compliance Engine
+        </p>
+        <h1 className="font-serif text-[2.25rem] leading-[1.1] mt-3 text-primary">
+          Snap. Classify.<br />Ship.
+        </h1>
+        <p className="font-sans text-sm text-primary/70 mt-4 max-w-md">
+          Take a photo of your product. We&apos;ll return the HTSUS classification in seconds.
+        </p>
+      </header>
+
+      {/* Capture or preview */}
+      <section className="mb-8">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFile}
+          className="hidden"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {imageDataUrl ? (
+          <div className="bg-surface-lowest rounded-3xl p-4 space-y-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageDataUrl}
+              alt="Captured product"
+              className="w-full rounded-2xl object-cover max-h-[60vh]"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="font-sans text-xs font-medium text-accent hover:underline"
+            >
+              Retake photo
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full bg-primary text-white rounded-full py-5 font-sans font-medium text-base shadow-sm active:opacity-90 transition"
+            style={{
+              backgroundImage:
+                "linear-gradient(180deg, #1f2937 0%, rgba(31,41,55,0.85) 100%)",
+            }}
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            Take Photo
+          </button>
+        )}
+      </section>
+
+      {/* Submit */}
+      {imageDataUrl && !result && (
+        <section className="mb-8">
+          <button
+            onClick={handleClassify}
+            disabled={loading}
+            className="w-full bg-secondary text-on-secondary rounded-full py-5 font-sans font-medium text-base disabled:opacity-50 active:opacity-90 transition"
+          >
+            {loading ? "Classifying…" : "Classify"}
+          </button>
+
+          {loading && (
+            <div className="mt-4 h-[2px] rounded-full overflow-hidden bg-surface-container">
+              <div className="flow-indicator h-full w-full" />
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Error */}
+      {error && (
+        <section className="mb-8 bg-surface-lowest rounded-2xl p-5">
+          <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-red-700">
+            Error
+          </p>
+          <p className="font-sans text-sm text-primary mt-2">{error}</p>
+        </section>
+      )}
+
+      {/* Result */}
+      {result && (
+        <section className="bg-surface-lowest rounded-3xl p-8 space-y-6">
+          <div>
+            <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/60">
+              HTSUS Code
+            </p>
+            <p className="font-serif text-[3rem] leading-none mt-3 text-primary tracking-tight">
+              {result.hs_code}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span
+              className={`font-sans text-[0.6875rem] font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
+                result.confidence_score >= 70
+                  ? "bg-secondary text-on-secondary"
+                  : "bg-amber-100 text-amber-900"
+              }`}
+            >
+              {result.confidence_score}% confidence
+            </span>
+            {result.requires_review && (
+              <span className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-amber-100 text-amber-900">
+                Needs review
+              </span>
+            )}
+          </div>
+
+          {Object.keys(result.ai_attributes).length > 0 && (
+            <div>
+              <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/60 mb-3">
+                Attributes
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(result.ai_attributes).map(([k, v]) => (
+                  <span
+                    key={k}
+                    className="font-sans text-xs px-3 py-1.5 rounded-full bg-surface-container text-primary"
+                  >
+                    <span className="text-primary/60">{k}:</span> {String(v)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={reset}
+            className="w-full mt-2 font-sans text-sm text-accent hover:underline"
+          >
+            Classify another
+          </button>
+        </section>
+      )}
+    </main>
   );
 }

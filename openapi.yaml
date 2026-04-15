@@ -1,0 +1,423 @@
+openapi: 3.1.0
+info:
+  title: Flow Marketplace Engine API
+  description: API-first cross-border logistics and compliance classification engine.
+  version: 0.1.0
+  contact:
+    name: Flow Team
+
+security: [] # Auth deferred to a future phase
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://{railway-domain}
+    description: Railway production
+    variables:
+      railway-domain:
+        default: flow.up.railway.app
+
+paths:
+  /api/v1/products:
+    post:
+      operationId: createProduct
+      summary: Ingest & normalize a product with variants
+      description: Transactionally saves a parent product and its child variants.
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: listProducts
+      summary: List product catalog
+      description: Returns a paginated list of products with nested variants. Excludes soft-deleted products.
+      tags: [Products]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: seller_id
+          in: query
+          description: Filter products by seller UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedProducts"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/products/{id}:
+    patch:
+      operationId: updateProduct
+      summary: Human override on a product
+      description: Updates specific fields on a product. Automatically sets requires_review to false.
+      tags: [Products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/compliance/classify:
+    post:
+      operationId: classifyProduct
+      summary: AI compliance classification (mock)
+      description: Mock endpoint representing the async AI engine. Returns hardcoded classification data.
+      tags: [Compliance]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassifyRequest"
+      responses:
+        "200":
+          description: Classification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassifyResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    # --- Request schemas ---
+
+    CreateProductRequest:
+      type: object
+      required: [sellerId, title, variants]
+      properties:
+        sellerId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        countryOfOrigin:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code
+        hsCode:
+          type: string
+        midCode:
+          type: string
+        aiAttributes:
+          type: object
+          additionalProperties: true
+        aiConfidenceScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        requiresReview:
+          type: boolean
+        variants:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/VariantInput"
+
+    VariantInput:
+      type: object
+      required: [sku, price]
+      properties:
+        sku:
+          type: string
+          minLength: 1
+        price:
+          type: number
+          exclusiveMinimum: 0
+        weightKg:
+          type: number
+          minimum: 0
+        lengthCm:
+          type: number
+          minimum: 0
+        widthCm:
+          type: number
+          minimum: 0
+        heightCm:
+          type: number
+          minimum: 0
+        attributes:
+          type: object
+          additionalProperties: true
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        countryOfOrigin:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code
+        hsCode:
+          type: string
+        midCode:
+          type: string
+        aiAttributes:
+          type: object
+          additionalProperties: true
+        aiConfidenceScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    ClassifyRequest:
+      type: object
+      description: Either `title` or at least one image in `images` is required.
+      properties:
+        productId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        category:
+          type: string
+        brand:
+          type: string
+        originCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code
+        destinationCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code
+        images:
+          type: array
+          items:
+            type: string
+          description: Image URLs or base64-encoded data URLs (e.g. `data:image/jpeg;base64,...`)
+
+    # --- Response schemas ---
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sellerId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        countryOfOrigin:
+          type: string
+        hsCode:
+          type: string
+        midCode:
+          type: string
+        aiAttributes:
+          type: object
+          additionalProperties: true
+        aiConfidenceScore:
+          type: integer
+        requiresReview:
+          type: boolean
+        deletedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Variant"
+
+    Variant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        price:
+          type: string
+          description: Decimal returned as string for precision
+        weightKg:
+          type: ["string", "null"]
+        lengthCm:
+          type: ["string", "null"]
+        widthCm:
+          type: ["string", "null"]
+        heightCm:
+          type: ["string", "null"]
+        attributes:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    PaginatedProducts:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+
+    ClassifyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            hs_code:
+              type: string
+            mid_code:
+              type: string
+            confidence_score:
+              type: integer
+              minimum: 0
+              maximum: 100
+            requires_review:
+              type: boolean
+            ai_attributes:
+              type: object
+              additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required: [error, message, code]
+      properties:
+        error:
+          type: boolean
+          const: true
+        message:
+          type: string
+        code:
+          type: integer

@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  MARKETPLACE_ADMIN
+  SELLER
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  role           UserRole
+  marketplaceId  String?   @map("marketplace_id") @db.Uuid
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@index([marketplaceId])
+  @@map("users")
+}
+
+model Product {
+  id                 String    @id @default(uuid()) @db.Uuid
+  sellerId           String    @map("seller_id") @db.Uuid
+  title              String
+  description        String?
+  brand              String?
+  category           String?
+  countryOfOrigin    String?   @map("country_of_origin")
+  hsCode             String?   @map("hs_code")
+  midCode            String?   @map("mid_code")
+  aiAttributes       Json?     @map("ai_attributes")
+  aiConfidenceScore  Int?      @map("ai_confidence_score")
+  requiresReview     Boolean   @default(false) @map("requires_review")
+  deletedAt          DateTime? @map("deleted_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  seller   User      @relation(fields: [sellerId], references: [id])
+  variants Variant[]
+
+  @@index([sellerId])
+  @@map("products")
+}
+
+model Variant {
+  id         String  @id @default(uuid()) @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  sku        String  @unique
+  price      Decimal @db.Decimal(10, 2)
+  weightKg   Decimal? @map("weight_kg") @db.Decimal(10, 3)
+  lengthCm   Decimal? @map("length_cm") @db.Decimal(10, 2)
+  widthCm    Decimal? @map("width_cm") @db.Decimal(10, 2)
+  heightCm   Decimal? @map("height_cm") @db.Decimal(10, 2)
+  attributes Json?
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("variants")
+}
