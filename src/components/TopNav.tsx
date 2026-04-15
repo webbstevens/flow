@@ -8,6 +8,7 @@ const links = [
   { href: "/classify", label: "Classify" },
   { href: "/trade", label: "Trade" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/docs", label: "Docs" },
 ];
 
 export function TopNav() {

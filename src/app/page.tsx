@@ -29,12 +29,12 @@ export default function Home() {
               arrow_forward
             </span>
           </Link>
-          <a
-            href="#docs"
+          <Link
+            href="/docs"
             className="bg-secondary text-on-secondary px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-90 transition"
           >
             Docs
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -177,12 +177,12 @@ export default function Home() {
             experience.
           </p>
           <div className="flex flex-wrap gap-4">
-            <a
-              href="#"
+            <Link
+              href="/docs"
               className="bg-secondary text-on-secondary px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:brightness-105 transition-all"
             >
               View API Reference
-            </a>
+            </Link>
             <a
               href="#"
               className="text-white border border-white/30 px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-all"
