@@ -51,6 +51,7 @@ export default function LoginPage() {
           {loading === "google" ? "Redirecting…" : "Continue with Google"}
         </button>
 
+        {/* GitHub sign-in — re-enable after the GitHub OAuth app is configured in Supabase
         <button
           onClick={() => signIn("github")}
           disabled={loading !== null}
@@ -59,6 +60,7 @@ export default function LoginPage() {
           <GitHubIcon />
           {loading === "github" ? "Redirecting…" : "Continue with GitHub"}
         </button>
+        */}
 
         {error && (
           <p className="text-xs text-red-600 font-sans mt-3">{error}</p>
