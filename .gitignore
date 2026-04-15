@@ -45,3 +45,6 @@ next-env.d.ts
 # Local-only docs and design assets (not shipped with code)
 /BackgroundContext
 /frontend mocks
+
+# OAuth client secrets downloaded from Google Cloud Console
+client_secret_*.json

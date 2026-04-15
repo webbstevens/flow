@@ -4,17 +4,35 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
 /**
- * OAuth callback. Supabase redirects here with a `?code=...` param after
- * successful sign-in. We exchange the code for a session, then:
- *   1. If the browser has a flow_ws cookie pointing to an unclaimed workspace,
- *      bind that workspace to the Supabase user (auto-claim existing keys).
- *   2. Otherwise, ensure the user has exactly one owned workspace.
- *   3. Clear the flow_ws cookie — Supabase session is canonical from here.
+ * Build the public-facing origin for redirects, respecting Railway/proxy headers.
+ * `new URL(request.url).origin` resolves to the internal container URL
+ * (localhost:PORT) behind a proxy, which breaks redirects.
  */
+function getOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  if (forwardedHost) {
+    return `${forwardedProto ?? "https"}://${forwardedHost}`;
+  }
+  const host = request.headers.get("host");
+  if (host) {
+    return `${request.nextUrl.protocol}//${host}`;
+  }
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = getOrigin(request);
+  const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
+  const errorParam = searchParams.get("error_description") ?? searchParams.get("error");
   const next = searchParams.get("next") ?? "/account";
+
+  if (errorParam) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(errorParam)}`
+    );
+  }
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
@@ -32,11 +50,9 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const oldWsId = cookieStore.get("flow_ws")?.value;
 
-  // Auto-claim: existing unclaimed cookie workspace → bind to this user
+  // Auto-claim existing anonymous workspace
   if (oldWsId) {
-    const existing = await prisma.workspace.findUnique({
-      where: { id: oldWsId },
-    });
+    const existing = await prisma.workspace.findUnique({ where: { id: oldWsId } });
     if (existing && !existing.ownerUserId) {
       await prisma.workspace.update({
         where: { id: oldWsId },
@@ -45,19 +61,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Ensure the user owns at least one workspace
+  // Ensure the user has a workspace
   const owned = await prisma.workspace.findFirst({
     where: { ownerUserId: userId },
     select: { id: true },
   });
   if (!owned) {
-    await prisma.workspace.create({
-      data: { ownerUserId: userId },
-    });
+    await prisma.workspace.create({ data: { ownerUserId: userId } });
   }
 
-  // Clear the anonymous cookie — Supabase session takes over
   cookieStore.delete("flow_ws");
-
   return NextResponse.redirect(`${origin}${next}`);
 }
