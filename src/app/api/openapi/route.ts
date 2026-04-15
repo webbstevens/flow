@@ -1,12 +1,7 @@
-import { readFileSync } from "fs";
-import { join } from "path";
-import yaml from "js-yaml";
+import { generateOpenApiSpec } from "@/lib/openapi-spec";
 
-// Cache the parsed spec at module load
-const specPath = join(process.cwd(), "openapi.yaml");
-const specYaml = readFileSync(specPath, "utf8");
-const spec = yaml.load(specYaml);
-
+// Cache-bust on each request so edits to Zod schemas surface immediately in dev.
+// Generation is very fast (< 5ms) so there's no meaningful cost.
 export async function GET() {
-  return Response.json(spec);
+  return Response.json(generateOpenApiSpec());
 }
