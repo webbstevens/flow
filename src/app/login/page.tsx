@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type Provider = "google" | "github";
+
+function ErrorFromUrl({ onError }: { onError: (msg: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const paramError = searchParams.get("error");
+    if (paramError) onError(decodeURIComponent(paramError));
+  }, [searchParams, onError]);
+  return null;
+}
 
 export default function LoginPage() {
   const [loading, setLoading] = useState<Provider | null>(null);
@@ -40,6 +50,10 @@ export default function LoginPage() {
           Sign in to manage your API keys, workspaces, and classifications.
         </p>
       </header>
+
+      <Suspense>
+        <ErrorFromUrl onError={setError} />
+      </Suspense>
 
       <section className="bg-surface-lowest rounded-3xl p-8 space-y-3">
         <button
