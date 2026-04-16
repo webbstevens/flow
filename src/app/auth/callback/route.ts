@@ -38,38 +38,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.user) {
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(error?.message ?? "unknown")}`
-    );
-  }
-
-  const userId = data.user.id;
-  const cookieStore = await cookies();
-  const oldWsId = cookieStore.get("flow_ws")?.value;
-
-  // Auto-claim existing anonymous workspace
-  if (oldWsId) {
-    const existing = await prisma.workspace.findUnique({ where: { id: oldWsId } });
-    if (existing && !existing.ownerUserId) {
-      await prisma.workspace.update({
-        where: { id: oldWsId },
-        data: { ownerUserId: userId },
-      });
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error || !data.user) {
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent(error?.message ?? "unknown")}`
+      );
     }
-  }
 
-  // Ensure the user has a workspace
-  const owned = await prisma.workspace.findFirst({
-    where: { ownerUserId: userId },
-    select: { id: true },
-  });
-  if (!owned) {
-    await prisma.workspace.create({ data: { ownerUserId: userId } });
-  }
+    const userId = data.user.id;
+    const cookieStore = await cookies();
+    const oldWsId = cookieStore.get("flow_ws")?.value;
 
-  cookieStore.delete("flow_ws");
-  return NextResponse.redirect(`${origin}${next}`);
+    // Auto-claim existing anonymous workspace
+    if (oldWsId) {
+      const existing = await prisma.workspace.findUnique({ where: { id: oldWsId } });
+      if (existing && !existing.ownerUserId) {
+        await prisma.workspace.update({
+          where: { id: oldWsId },
+          data: { ownerUserId: userId },
+        });
+      }
+    }
+
+    // Ensure the user has a workspace
+    const owned = await prisma.workspace.findFirst({
+      where: { ownerUserId: userId },
+      select: { id: true },
+    });
+    if (!owned) {
+      await prisma.workspace.create({ data: { ownerUserId: userId } });
+    }
+
+    cookieStore.delete("flow_ws");
+    return NextResponse.redirect(`${origin}${next}`);
+  } catch (err: any) {
+    console.error("Auth callback error:", err);
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(err.message || String(err))}`);
+  }
 }
