@@ -38,6 +38,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // Do not refresh session on the callback route, 
+  // as it can interfere with the PKCE code exchange in route.ts
+  if (request.nextUrl.pathname.startsWith("/auth/callback")) {
+    return supabaseResponse;
+  }
+
   // Refreshes the session if expired; a no-op if there's no session
   await supabase.auth.getUser();
 
