@@ -19,6 +19,7 @@ import {
 import { uploadClassifyImage } from "@/lib/image-storage";
 import { prisma } from "@/lib/prisma";
 import { buildClassificationEnvelope } from "@/lib/compliance";
+import { getOrInferRequirement } from "@/lib/requirements";
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
@@ -95,12 +96,29 @@ export async function POST(request: NextRequest) {
         confidenceScore: result.confidence_score,
         requiresReview: result.requires_review,
         countryOfOrigin: result.country_of_origin || null,
+        destinationCountry: parsed.data.destinationCountry ?? null,
         materials: result.materials || null,
         restrictedGoodsFlag: result.restricted_goods_flag,
         customsDescription: result.product_description_for_customs || null,
         aiAttributes: result.ai_attributes,
       },
     });
+
+    // 5b. Infer / fetch documentation requirements for this corridor.
+    //     Best-effort — don't block the classify response on failure.
+    const documentation = parsed.data.destinationCountry
+      ? await getOrInferRequirement({
+          hsCode: record.hsCode,
+          originCountry: record.countryOfOrigin,
+          destinationCountry: parsed.data.destinationCountry,
+          productTitle: record.sourceTitle,
+          productDescription: result.product_description_for_customs,
+          materials: record.materials,
+        }).catch((err) => {
+          console.error("[classify] requirement inference failed", err);
+          return null;
+        })
+      : null;
 
     statusCode = 200;
 
@@ -113,22 +131,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const envelope = buildClassificationEnvelope({
-      id: record.id,
-      hsCode: record.hsCode,
-      midCode: record.midCode,
-      countryOfOrigin: record.countryOfOrigin,
-      materials: record.materials,
-      customsDescription: record.customsDescription,
-      confidenceScore: record.confidenceScore,
-      requiresReview: record.requiresReview,
-      restrictedGoodsFlag: record.restrictedGoodsFlag,
-      aiAttributes: (record.aiAttributes as Record<string, unknown> | null) ?? null,
-      productUrl: record.productUrl,
-      sourceTitle: record.sourceTitle,
-      createdAt: record.createdAt,
-      imageUrl: imageStoragePath?.publicUrl ?? null,
-    });
+    const envelope = buildClassificationEnvelope(
+      {
+        id: record.id,
+        hsCode: record.hsCode,
+        midCode: record.midCode,
+        countryOfOrigin: record.countryOfOrigin,
+        materials: record.materials,
+        customsDescription: record.customsDescription,
+        confidenceScore: record.confidenceScore,
+        requiresReview: record.requiresReview,
+        restrictedGoodsFlag: record.restrictedGoodsFlag,
+        aiAttributes:
+          (record.aiAttributes as Record<string, unknown> | null) ?? null,
+        productUrl: record.productUrl,
+        sourceTitle: record.sourceTitle,
+        createdAt: record.createdAt,
+        imageUrl: imageStoragePath?.publicUrl ?? null,
+      },
+      documentation,
+    );
 
     const res = Response.json({ status: "success", data: envelope });
     res.headers.set("X-Request-Id", requestId);

@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
 import { deriveCompliance } from "@/lib/compliance";
+import { findCachedRequirement } from "@/lib/requirements";
 import { ComplianceBadge } from "../_components/ComplianceBadge";
 import {
   ComplianceCard,
   ComplianceRow,
 } from "../_components/ComplianceCard";
+import { RequirementsCard } from "../_components/RequirementsCard";
 
 type Tab = "overview" | "attributes" | "raw";
 
@@ -51,6 +53,14 @@ export default async function AnalyticsDetailPage({
     restrictedGoodsFlag: record.restrictedGoodsFlag,
   });
   const isPartial = evaluation.status === "partially_compliant";
+
+  const documentation = record.destinationCountry
+    ? await findCachedRequirement(
+        record.hsCode,
+        record.countryOfOrigin,
+        record.destinationCountry,
+      )
+    : null;
 
   const overallStatus: {
     label: string;
@@ -306,7 +316,15 @@ export default async function AnalyticsDetailPage({
               label="Country of origin"
               value={record.countryOfOrigin ?? "—"}
             />
+            <ComplianceRow
+              label="Destination"
+              value={record.destinationCountry ?? "—"}
+            />
           </ComplianceCard>
+
+          {documentation && (
+            <RequirementsCard documentation={documentation} />
+          )}
 
           <ComplianceCard title="Source">
             <ComplianceRow
