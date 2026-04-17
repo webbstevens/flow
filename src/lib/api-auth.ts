@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { hashApiKey } from "./api-keys";
 import { errorResponse } from "./errors";
+import { ErrorCodes, type ErrorCode } from "./error-codes";
 import { getWorkspaceId } from "./session";
 import { checkRateLimit } from "./rate-limit";
 
@@ -67,7 +68,13 @@ export async function requireApiKey(request: Request) {
  */
 export type CallerResolution =
   | { ok: true; workspaceId: string; keyPrefix: string | null }
-  | { ok: false; status: number; message: string; keyPrefix?: string | null };
+  | {
+      ok: false;
+      status: number;
+      code: ErrorCode;
+      message: string;
+      keyPrefix?: string | null;
+    };
 
 export async function resolveCallerWorkspace(
   request: Request,
@@ -83,6 +90,7 @@ export async function resolveCallerWorkspace(
         return {
           ok: false,
           status: 429,
+          code: ErrorCodes.RATE_LIMITED,
           message: "Rate limit exceeded. Max 10 requests per minute.",
           keyPrefix: apiKey.prefix,
         };
@@ -94,7 +102,12 @@ export async function resolveCallerWorkspace(
       };
     } catch (err) {
       if (err instanceof ApiKeyError) {
-        return { ok: false, status: err.status, message: err.message };
+        return {
+          ok: false,
+          status: err.status,
+          code: ErrorCodes.UNAUTHORIZED,
+          message: err.message,
+        };
       }
       throw err;
     }
@@ -103,7 +116,12 @@ export async function resolveCallerWorkspace(
   // Session path.
   const workspaceId = await getWorkspaceId();
   if (!workspaceId) {
-    return { ok: false, status: 401, message: "Authentication required" };
+    return {
+      ok: false,
+      status: 401,
+      code: ErrorCodes.UNAUTHORIZED,
+      message: "Authentication required",
+    };
   }
   return { ok: true, workspaceId, keyPrefix: null };
 }
@@ -125,7 +143,11 @@ export function withApiKey<Ctx>(
       return await handler(request, ctx, apiKey);
     } catch (err) {
       if (err instanceof ApiKeyError) {
-        return errorResponse(err.message, err.status);
+        return errorResponse({
+          code: ErrorCodes.UNAUTHORIZED,
+          message: err.message,
+          status: err.status,
+        });
       }
       throw err;
     }

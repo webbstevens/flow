@@ -275,9 +275,10 @@ export const historyResponseSchema = z
 
 export const errorSchema = z
   .object({
-    error: z.literal(true),
+    code: z.string(),
     message: z.string(),
-    code: z.number().int(),
+    request_id: z.string(),
+    docs_url: z.string().url(),
   })
   .meta({ id: "ErrorResponse" });
 

@@ -1,17 +1,23 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
+import { ErrorCodes } from "@/lib/error-codes";
 import { createProductSchema } from "@/lib/validation";
 import { apiHandler } from "@/lib/api-handler";
 
 export const POST = apiHandler(
   { auth: true, meter: "products.create" },
-  async (request: NextRequest) => {
+  async (request: NextRequest, _ctx, { requestId }) => {
     const body = await request.json();
     const parsed = createProductSchema.safeParse(body);
 
     if (!parsed.success) {
-      return errorResponse(parsed.error.issues[0].message, 400);
+      return errorResponse({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: parsed.error.issues[0].message,
+        status: 400,
+        requestId,
+      });
     }
 
     const { variants, ...productData } = parsed.data;

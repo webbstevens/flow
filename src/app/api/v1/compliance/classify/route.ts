@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { errorResponse } from "@/lib/errors";
+import { ErrorCodes } from "@/lib/error-codes";
 import { classifyRequestSchema } from "@/lib/validation";
 import {
   classifyWithClaude,
@@ -40,9 +41,12 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       statusCode = 400;
-      const res = errorResponse(parsed.error.issues[0].message, 400);
-      res.headers.set("X-Request-Id", requestId);
-      return res;
+      return errorResponse({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: parsed.error.issues[0].message,
+        status: 400,
+        requestId,
+      });
     }
 
     const workspaceId = await getWorkspaceId();
@@ -58,9 +62,12 @@ export async function POST(request: NextRequest) {
         statusCode = 400;
         const msg =
           err instanceof Error ? err.message : "Failed to scrape URL";
-        const res = errorResponse(`Unable to read product URL: ${msg}`, 400);
-        res.headers.set("X-Request-Id", requestId);
-        return res;
+        return errorResponse({
+          code: ErrorCodes.SCRAPE_FAILED,
+          message: `Unable to read product URL: ${msg}`,
+          status: 400,
+          requestId,
+        });
       }
     }
 
@@ -167,9 +174,12 @@ export async function POST(request: NextRequest) {
     const message =
       err instanceof Error ? err.message : "Internal server error";
     errorMsg = message;
-    const res = errorResponse(message, 500);
-    res.headers.set("X-Request-Id", requestId);
-    return res;
+    return errorResponse({
+      code: ErrorCodes.INTERNAL_ERROR,
+      message,
+      status: 500,
+      requestId,
+    });
   } finally {
     logRequest({
       requestId,

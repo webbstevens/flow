@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { ApiKeyError, requireApiKey } from "./api-auth";
 import { errorResponse } from "./errors";
+import { ErrorCodes } from "./error-codes";
 import { checkRateLimit } from "./rate-limit";
 import { generateRequestId, logRequest } from "./request-logger";
 import { incrementUsage } from "./usage";
@@ -49,7 +50,12 @@ export function apiHandler<Ctx>(
         const rl = checkRateLimit(keyPrefix);
         if (!rl.allowed) {
           statusCode = 429;
-          const res = errorResponse("Rate limit exceeded. Max 10 requests per minute.", 429);
+          const res = errorResponse({
+            code: ErrorCodes.RATE_LIMITED,
+            message: "Rate limit exceeded. Max 10 requests per minute.",
+            status: 429,
+            requestId,
+          });
           return addHeaders(res, requestId, rl.remaining, rl.resetMs);
         }
       }
@@ -71,13 +77,29 @@ export function apiHandler<Ctx>(
       if (err instanceof ApiKeyError) {
         statusCode = err.status;
         errorMsg = err.message;
-        return addHeaders(errorResponse(err.message, err.status), requestId);
+        return addHeaders(
+          errorResponse({
+            code: ErrorCodes.UNAUTHORIZED,
+            message: err.message,
+            status: err.status,
+            requestId,
+          }),
+          requestId,
+        );
       }
       const message =
         err instanceof Error ? err.message : "Internal server error";
       statusCode = 500;
       errorMsg = message;
-      return addHeaders(errorResponse(message, 500), requestId);
+      return addHeaders(
+        errorResponse({
+          code: ErrorCodes.INTERNAL_ERROR,
+          message,
+          status: 500,
+          requestId,
+        }),
+        requestId,
+      );
     } finally {
       logRequest({
         requestId,

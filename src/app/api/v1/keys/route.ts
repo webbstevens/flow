@@ -2,20 +2,28 @@ import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
+import { ErrorCodes } from "@/lib/error-codes";
 import { generateApiKey, maskApiKey } from "@/lib/api-keys";
 import { getOrCreateWorkspaceId } from "@/lib/session";
+import { generateRequestId } from "@/lib/request-logger";
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(80),
 });
 
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
     const workspaceId = await getOrCreateWorkspaceId();
     const body = await request.json();
     const parsed = createKeySchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(parsed.error.issues[0].message, 400);
+      return errorResponse({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: parsed.error.issues[0].message,
+        status: 400,
+        requestId,
+      });
     }
 
     const { fullKey, prefix, keyHash } = generateApiKey();
@@ -47,11 +55,17 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Internal server error";
-    return errorResponse(message, 500);
+    return errorResponse({
+      code: ErrorCodes.INTERNAL_ERROR,
+      message,
+      status: 500,
+      requestId,
+    });
   }
 }
 
 export async function GET() {
+  const requestId = generateRequestId();
   try {
     const workspaceId = await getOrCreateWorkspaceId();
     const keys = await prisma.apiKey.findMany({
@@ -75,6 +89,11 @@ export async function GET() {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Internal server error";
-    return errorResponse(message, 500);
+    return errorResponse({
+      code: ErrorCodes.INTERNAL_ERROR,
+      message,
+      status: 500,
+      requestId,
+    });
   }
 }

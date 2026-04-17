@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { errorResponse } from "@/lib/errors";
+import { ErrorCodes } from "@/lib/error-codes";
 import { prisma } from "@/lib/prisma";
 import { getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
@@ -72,9 +73,12 @@ export async function GET(request: NextRequest) {
     const message =
       err instanceof Error ? err.message : "Internal server error";
     errorMsg = message;
-    const res = errorResponse(message, 500);
-    res.headers.set("X-Request-Id", requestId);
-    return res;
+    return errorResponse({
+      code: ErrorCodes.INTERNAL_ERROR,
+      message,
+      status: 500,
+      requestId,
+    });
   } finally {
     logRequest({
       requestId,
