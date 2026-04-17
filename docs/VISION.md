@@ -29,59 +29,79 @@ Demo / near-term scope focuses on Jobs 1 and 3 end-to-end. Job 2 is scoped down 
 
 ---
 
-## 3. The five API domains
+## 3. The four services
 
-Three jobs map to five durable API surfaces plus two cross-cutting concerns. These are the stable names we organize around; individual endpoints live in code.
+Flow is **one API product with four internal services**, not one monolith and not a microservice grid. Externally consumers see a single base URL, single auth, single SDK. Internally the surface is organized into four domains that each pass four tests: a market category exists, data is cohesive within, caller profile is coherent, and the implementation is replaceable at the seam (build or buy).
 
-### 3.1 Classification & Enrichment *(exists; extend)*
-Given a product input, produce HS10, country of origin, materials, MID, and the per-PGA regulatory attributes required for the product's HS chapter. Returns rationale + precedents for auditability.
+Reference data (agencies, certificates, tariff schedules, de minimis, FTA, country codes) backs all four services but is not itself a service — it's shared infrastructure exposed read-only.
 
-### 3.2 Compliance Dossier *(partial; promote to shipment scope)*
-Given a (product, origin, destination) or (shipment), return the set of required documents and filings, the data completeness against each, and a GRYG summary. Already exists at classification-record scope. Needs extension to shipment scope and a completeness score that tells the seller what's still missing.
+### 3.1 Classification *(exists; extend)*
+**"What is this product?"**
+HS10, country of origin, MID, materials, and per-PGA regulatory attributes required for the product's HS chapter. Returns rationale + precedents for auditability. Called at product ingestion. Replaceable by Zonos Classify / 3CE / Avalara Classify behind an adapter.
 
-### 3.3 Landed Cost / DDP Quote *(missing — largest gap)*
-Given (product, destination, optionally buyer address and quantity), return the guaranteed landed cost with line-item breakdown. Must be fast enough to run on product-page load and reliable enough that the marketplace can commit to the price. Supports single-point and bulk (one product → all 195 countries) queries.
+### 3.2 Compliance *(partial)*
+**"Is this ok to ship, and what does it need?"**
+Per-lane dossier, required documents, restricted-party + sanctions screening, declaration-data completeness, GRYG scoring. Combines what were previously separate "dossier" and "screening" concerns because they answer the same meta-question from opposite sides (what's needed vs. what's blocked). Called by Pricing (to decline restricted) and Fulfillment (to block submit).
 
-### 3.4 Shipment Assembly *(missing)*
-Party management (sellers, buyers, importers of record — with tax IDs, EORI, etc.), shipment graph (multi-line orders with Incoterms, mode, service level), and a canonical payload compiler that produces a WCO-aligned JSON suitable for any carrier.
+### 3.3 Pricing *(missing — largest gap)*
+**"What will this cost landed?"**
+Duty, tax, freight, fees, insurance, FTA eligibility, de minimis awareness. Highest-volume and lowest-latency surface — runs on product-page load for a marketplace browsing experience. Single-point and bulk (one product → all 195 countries) queries. Replaceable by Zonos Landed Cost / Avalara Cross-Border / Hurricane behind an adapter.
 
-### 3.5 Carrier Transmission *(missing)*
-Thin adapters that translate the canonical payload into carrier-specific requests (EasyPost, FedEx, UPS, DHL, Swap OS if targeted), submit, and receive webhooks. The canonical layer is the abstraction boundary; adapters are replaceable.
-
-### 3.6 Cross-cutting: Restricted Party Screening
-OFAC SDN, BIS Consolidated, embargoed destinations. Called by both quoting (decline to price) and shipment submit (block transmission). Free government lists are adequate to start.
-
-### 3.7 Cross-cutting: Reference Data
-Agencies + certificate catalog (exist), tariff schedules, de minimis thresholds, FTA eligibility by lane, currency conversion. Mostly static; owned as reference tables, refreshed on schedule.
+### 3.4 Fulfillment *(missing)*
+**"Actually ship it."**
+Party management (seller / buyer / importer of record with tax IDs, EORI, etc.), shipment graph (multi-line orders with Incoterms, mode, service level), canonical payload compilation (WCO-aligned JSON), carrier adapters (EasyPost / Swap OS / FedEx / UPS / DHL), transmission, webhooks. Transactional, lower-volume, higher-stakes than Pricing.
 
 ---
 
-## 4. Current state vs. the vision
+## 4. Surface-area tenets
 
-| Domain | Today | What's missing |
+Rules any consumer can observe and depend on. Written as constraints on the public API contract, not implementation guidance.
+
+1. **One product, one auth.** Single base URL, single API key scheme, single SDK. Internal service boundaries are invisible to consumers. Endpoints are resource-oriented (`/shipments/:id/submit`), not RPC (`/submitShipment`).
+
+2. **Idempotent writes by default.** Every write accepts a client-provided idempotency key. Retries never duplicate shipments, quotes, or submissions. Especially critical at `/shipments/:id/submit`, `/quotes/landed-cost`, and any LLM-backed write.
+
+3. **Audit-grade responses.** Every AI-derived or vendor-derived field ships with `{ value, source, confidence, derived_at }`. No opaque values in consumer-facing payloads. Operator overrides are explicit and logged.
+
+4. **Reference data is read-only and cacheable.** `/catalog/*` and `/lanes/*` responses are immutable per version. Consumers cache aggressively; we bump versions, we don't mutate values in place.
+
+5. **No hidden orchestration.** Endpoints do one observable thing. If an operation crosses services (e.g. submit → screen → compile → transmit), it's either a single composition endpoint with clearly documented side effects, or the consumer orchestrates. Never invisible cascading writes.
+
+6. **Webhook-first for state changes.** Any asynchronous state transition (shipment submitted, customs cleared, screening flagged) emits a signed webhook to registered endpoints. Replayable. Polling is the fallback, not the default.
+
+7. **Versioning per module, not per endpoint.** Module-scoped paths (`/v1/quotes`, `/v2/quotes`) let one service advance without dragging the others. Additive changes don't bump versions; breaking changes do, deliberately.
+
+8. **Standard error contract.** Every error: `{ code, message, request_id, docs_url }`. Machine-readable code + human message + link to the exact docs section. No endpoint-specific error shapes.
+
+---
+
+## 5. Current state vs. the vision
+
+| Service | Today | What's missing |
 |---|---|---|
-| Classification & Enrichment | HS, origin, materials, MID, rationale, precedents | Per-PGA regulatory attributes on Product |
-| Compliance Dossier | GRYG bar per classification record + full catalog drawer | Promotion to shipment scope; completeness scoring |
-| Landed Cost / DDP Quote | — | Entire domain |
-| Shipment Assembly | — | Parties, Shipments, ShipmentLines, canonical compiler |
-| Carrier Transmission | — | Adapter interface + at least one working adapter |
-| Restricted Party Screening | — | OFAC/BIS check before quote + submit |
-| Reference Data | Agency + certificate catalog (seeded) | Tariff / de-minimis / FTA data |
+| Classification | HS, origin, materials, MID, rationale, precedents | Per-PGA regulatory attributes on Product |
+| Compliance | GRYG bar per classification record + full catalog drawer | Shipment scope, completeness scoring, restricted-party screening |
+| Pricing | — | Entire service (duty / tax / freight / FTA / de-minimis) |
+| Fulfillment | — | Parties, Shipments, canonical compiler, carrier adapters, webhooks |
+| Reference data (shared) | Agencies + certificate catalog (seeded) | Tariff schedules, de-minimis, FTA, country data |
 
 ---
 
-## 5. Architectural principles
+## 6. Architectural principles
 
-- **Canonical first, adapters at the edge.** Payloads target the WCO Data Model shape. Carrier-specific formats (EasyPost, Swap OS, FedEx, UPS) are thin transformation layers. Never model the domain against a single carrier.
+These are internal rules that keep the surface-area tenets achievable over time.
+
+- **Canonical first, adapters at the edge.** Payloads target the WCO Data Model shape. Carrier-specific formats (EasyPost, Swap OS, FedEx, UPS) are thin transformation layers. Never model the domain against a single vendor.
+- **Services talk via APIs, not cross-service DB reads.** Compliance asking Classification for a product's HS reads `/products/:id`; it does not `SELECT` from the products table directly. This is what keeps the seams replaceable.
 - **Data-driven validation.** The regulation catalog tells the system which attributes are required for a given HS chapter. Zod schemas derive from catalog rows, not hand-maintained code.
-- **Audit-grade by default.** Every AI-produced value carries source + confidence + rationale. Operators can override; overrides are logged. Nothing is opaque.
+- **Audit-grade by default.** Every AI-produced or vendor-derived value carries source + confidence + rationale. Operators can override; overrides are logged.
 - **Reference data in Postgres, not prompts.** Agencies, certificates, tariff schedules, de minimis rules — all queryable tables. LLMs read from them, not the other way around.
-- **Idempotency on every write endpoint.** Marketplaces retry; duplicate shipments are unacceptable.
-- **Flow is not a system of record for orders.** If a marketplace already has the order graph, we accept it as input. We own the compliance + customs dossier, not the commerce transaction.
+- **Flow is not a system of record for orders.** If a marketplace already has the order graph, we accept it as input and reference it by ID. We own the compliance + customs dossier, not the commerce transaction.
+- **Each service passes the four-test.** Before adding a service or splitting one, answer: is there a market? Is the data cohesive? Is the caller profile coherent? Is it replaceable at the seam? If any answer is no, rethink the boundary.
 
 ---
 
-## 6. Non-goals (today)
+## 7. Non-goals (today)
 
 - **Flow is not a carrier.** We don't print labels; we hand off to carriers or label services.
 - **Flow is not a licensed customs broker.** PGA filings route through a broker adapter; we produce the data, not the filing credentials.
@@ -92,7 +112,7 @@ Agencies + certificate catalog (exist), tariff schedules, de minimis thresholds,
 
 ---
 
-## 7. Open strategic questions
+## 8. Open strategic questions
 
 These gate major design decisions. Flagged rather than pretended-resolved.
 
@@ -104,7 +124,7 @@ These gate major design decisions. Flagged rather than pretended-resolved.
 
 ---
 
-## 8. What this document is not
+## 9. What this document is not
 
 - Not an implementation plan. Sequencing and PR roadmaps live in GitHub milestones and `TODO` discussion, not here.
 - Not an agent-behavior config. `AGENTS.md` and `CLAUDE.md` govern how Claude Code behaves in this repo. This document governs *what we're building and why*.
