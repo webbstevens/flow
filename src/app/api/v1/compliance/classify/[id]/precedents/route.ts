@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
+import { ErrorCodes } from "@/lib/error-codes";
 import { generateRequestId, logRequest } from "@/lib/request-logger";
 import { incrementUsage } from "@/lib/usage";
 import { resolveCallerWorkspace } from "@/lib/api-auth";
@@ -35,9 +36,12 @@ export async function GET(
     if (!auth.ok) {
       statusCode = auth.status;
       keyPrefix = auth.keyPrefix ?? null;
-      const res = errorResponse(auth.message, auth.status);
-      res.headers.set("X-Request-Id", requestId);
-      return res;
+      return errorResponse({
+        code: auth.code,
+        message: auth.message,
+        status: auth.status,
+        requestId,
+      });
     }
     workspaceId = auth.workspaceId;
     keyPrefix = auth.keyPrefix;
@@ -47,9 +51,12 @@ export async function GET(
     });
     if (!record || record.workspaceId !== workspaceId) {
       statusCode = 404;
-      const res = errorResponse("Classification record not found", 404);
-      res.headers.set("X-Request-Id", requestId);
-      return res;
+      return errorResponse({
+        code: ErrorCodes.NOT_FOUND,
+        message: "Classification record not found",
+        status: 404,
+        requestId,
+      });
     }
 
     const precedents = await getOrInferPrecedents({
@@ -61,9 +68,12 @@ export async function GET(
 
     if (!precedents) {
       statusCode = 502;
-      const res = errorResponse("Precedents lookup failed", 502);
-      res.headers.set("X-Request-Id", requestId);
-      return res;
+      return errorResponse({
+        code: ErrorCodes.UPSTREAM_ERROR,
+        message: "Precedents lookup failed",
+        status: 502,
+        requestId,
+      });
     }
 
     statusCode = 200;
@@ -76,9 +86,12 @@ export async function GET(
     const message =
       err instanceof Error ? err.message : "Internal server error";
     errorMsg = message;
-    const res = errorResponse(message, 500);
-    res.headers.set("X-Request-Id", requestId);
-    return res;
+    return errorResponse({
+      code: ErrorCodes.INTERNAL_ERROR,
+      message,
+      status: 500,
+      requestId,
+    });
   } finally {
     logRequest({
       requestId,
