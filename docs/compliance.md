@@ -37,8 +37,6 @@ classification_catalog_annotations   (per-lane LLM judgments)
 - `classification_catalog_annotations` is the **inference surface** — one row
   per (HS6, origin, destination, catalog entry). The LLM sees every triggered
   catalog row for a lane and answers, per row, "does this apply?"
-- `classification_requirements` is the **legacy cache** — deprecated. See
-  [Migration status](#migration-status-option-c-issue-15) below.
 
 ## Request flow
 
@@ -53,9 +51,7 @@ That function:
    the **triggered** rows (those whose `triggering_hs_chapters` is empty or
    contains the product's HS2 chapter).
 3. Joins catalog rows + annotations into a `UnifiedEnvelope` with:
-   - Legacy `required_documents[]` — back-compat projection of entries where
-     `applies=true`.
-   - New `catalog_entries[]` — every catalog row (even "not triggered" /
+   - `catalog_entries[]` — every catalog row (even "not triggered" /
      "not applicable") with its GRYG status, rationale, and agency grouping.
    - `counts`, `agencies_reviewed`, `total_regulations` for the summary bar.
 
@@ -76,12 +72,6 @@ Severity vocabulary: the catalog uses `required | conditional | informational`;
 the envelope exposes `required | alternative | informational`. The
 `normalizeSeverity()` mapping (`conditional → alternative`) happens at the
 envelope boundary so consumers see TARIC-aligned terms.
-
-## Feature flag
-
-`REQUIREMENTS_V2` — defaults to **on** as of PR 4. Set to `false` to roll back
-to the legacy path (uses `findCachedRequirement()` + `computeDeepReview()`).
-Flag will be removed in PR 5 along with the legacy code.
 
 ## Seeding the catalog
 
@@ -108,13 +98,12 @@ rest (~85 rows across ~34 agencies) and its rows stay at
 | [#29](https://github.com/webbstevens/flow/pull/29) | Add `jurisdiction` + `type` columns to `certificate_catalog` | merged |
 | [#30](https://github.com/webbstevens/flow/pull/30) | New `classification_catalog_annotations` table + v2 inference | merged |
 | [#31](https://github.com/webbstevens/flow/pull/31) | Unified envelope + single-list UI, flag-gated | merged |
-| This PR | Flip `REQUIREMENTS_V2` default to on; deprecate legacy `required_documents` column + API field | in flight |
-| PR 5 | Drop `classification_requirements` table + legacy code | pending |
+| [#32](https://github.com/webbstevens/flow/pull/32) | Flip `REQUIREMENTS_V2` default to on; deprecate legacy field + table | merged |
+| This PR | Drop `classification_requirements` table, `deep-review.ts`, legacy inference, `required_documents` field, and the `REQUIREMENTS_V2` flag | in flight |
 
 Annotations populate **lazily** — the first classify call per (hs6, origin,
 destination) triggers an LLM call of ~15–30 triggered rows; subsequent calls
-hit the cache. No corpus-wide backfill is needed; old cache rows in
-`classification_requirements` are simply ignored by the v2 path.
+hit the cache. No corpus-wide backfill is needed.
 
 ## Adding a new catalog entry
 

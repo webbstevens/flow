@@ -23,7 +23,6 @@ import {
 import {
   hs6,
   type RequirementEnvelope,
-  type RequiredDocument,
   type RequirementStatus,
   type RequirementSource,
   type RequirementWarning,
@@ -194,23 +193,6 @@ export async function buildUnifiedEnvelope(
     });
   }
 
-  // Back-compat projection of entries → required_documents.
-  const requiredDocs: RequiredDocument[] = entries
-    .filter((e) => e.applies)
-    .map((e) => {
-      const doc: RequiredDocument = {
-        certificate_code: e.catalog_code,
-        name: e.title,
-        agency: e.agency_code,
-        agency_name: e.agency_name,
-        jurisdiction: e.jurisdiction as RequiredDocument["jurisdiction"],
-        type: e.type as RequiredDocument["type"],
-        severity: e.severity,
-      };
-      if (e.rationale) doc.note = e.rationale;
-      return doc;
-    });
-
   const warnings = await buildWarnings(input, dest);
   const overall = deriveOverall(annotations);
 
@@ -220,7 +202,6 @@ export async function buildUnifiedEnvelope(
     confidence: overall.confidence,
     destination_country: dest,
     origin_country: (input.originCountry ?? "ANY").toUpperCase(),
-    required_documents: requiredDocs,
     warnings,
     updated_at: new Date().toISOString(),
     verified_at: overall.verifiedAt,
