@@ -19,9 +19,7 @@ import {
 import { uploadClassifyImage } from "@/lib/image-storage";
 import { prisma } from "@/lib/prisma";
 import { buildClassificationEnvelope } from "@/lib/compliance";
-import { getOrInferRequirement } from "@/lib/requirements";
 import { buildUnifiedEnvelope } from "@/lib/requirements-v2";
-import { isRequirementsV2Enabled } from "@/lib/catalog-annotations";
 
 /**
  * If a request doesn't specify a destination country, default to US.
@@ -115,28 +113,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 5b. Infer / fetch documentation requirements for this corridor.
-    //     Best-effort — don't block the classify response on failure.
-    //     v2 path builds the envelope from catalog + per-lane annotations;
-    //     v1 path uses the legacy `classification_requirements` cache.
-    const documentation = await (isRequirementsV2Enabled()
-      ? buildUnifiedEnvelope({
-          hsCode: record.hsCode,
-          originCountry: record.countryOfOrigin,
-          destinationCountry,
-          productTitle: record.sourceTitle,
-          productDescription: result.product_description_for_customs,
-          materials: record.materials,
-        })
-      : getOrInferRequirement({
-          hsCode: record.hsCode,
-          originCountry: record.countryOfOrigin,
-          destinationCountry,
-          productTitle: record.sourceTitle,
-          productDescription: result.product_description_for_customs,
-          materials: record.materials,
-        })
-    ).catch((err) => {
+    // 5b. Build documentation envelope for this corridor from the catalog
+    //     + per-lane annotations. Best-effort — don't block the classify
+    //     response on failure.
+    const documentation = await buildUnifiedEnvelope({
+      hsCode: record.hsCode,
+      originCountry: record.countryOfOrigin,
+      destinationCountry,
+      productTitle: record.sourceTitle,
+      productDescription: result.product_description_for_customs,
+      materials: record.materials,
+    }).catch((err) => {
       console.error("[classify] requirement inference failed", err);
       return null;
     });

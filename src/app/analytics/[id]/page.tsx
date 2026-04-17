@@ -4,10 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
 import { deriveCompliance } from "@/lib/compliance";
-import { findCachedRequirement } from "@/lib/requirements";
-import { computeDeepReview } from "@/lib/deep-review";
 import { buildUnifiedEnvelope } from "@/lib/requirements-v2";
-import { isRequirementsV2Enabled } from "@/lib/catalog-annotations";
 import { findCachedRationale, hashAttributes } from "@/lib/rationale";
 import { findCachedPrecedents, hashQuery } from "@/lib/precedents";
 import { ComplianceBadge } from "../_components/ComplianceBadge";
@@ -68,32 +65,15 @@ export default async function AnalyticsDetailPage({
   });
   const isPartial = evaluation.status === "partially_compliant";
 
-  const v2 = isRequirementsV2Enabled();
-
-  const unified =
-    v2 && record.destinationCountry
-      ? await buildUnifiedEnvelope({
-          hsCode: record.hsCode,
-          originCountry: record.countryOfOrigin,
-          destinationCountry: record.destinationCountry,
-          productTitle: record.sourceTitle,
-          materials: record.materials,
-        })
-      : null;
-
-  const documentation =
-    unified ??
-    (record.destinationCountry
-      ? await findCachedRequirement(
-          record.hsCode,
-          record.countryOfOrigin,
-          record.destinationCountry,
-        )
-      : null);
-
-  const deepReview = v2
-    ? null
-    : await computeDeepReview(record.hsCode, record.destinationCountry);
+  const unified = record.destinationCountry
+    ? await buildUnifiedEnvelope({
+        hsCode: record.hsCode,
+        originCountry: record.countryOfOrigin,
+        destinationCountry: record.destinationCountry,
+        productTitle: record.sourceTitle,
+        materials: record.materials,
+      })
+    : null;
 
   // Pre-warm the audit accordions from cache — avoids a client-side fetch
   // when we already generated the rationale/precedents earlier. Cache miss
@@ -437,13 +417,7 @@ export default async function AnalyticsDetailPage({
             />
           </ComplianceCard>
 
-          {documentation && (
-            <RequirementsCard
-              documentation={documentation}
-              deepReview={deepReview}
-              unified={unified}
-            />
-          )}
+          {unified && <RequirementsCard unified={unified} />}
 
           <ComplianceCard title="Source">
             <ComplianceRow

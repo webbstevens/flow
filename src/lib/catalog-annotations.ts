@@ -10,8 +10,8 @@
  * envelope exposed to API callers is derived by joining catalog rows
  * with these annotations (see src/lib/requirements-v2.ts — next PR).
  *
- * Gated behind process.env.REQUIREMENTS_V2 === "true" until the
- * unified UI ships in PR 3.
+ * This is the only path as of PR 5 — the legacy `classification_requirements`
+ * cache + freehand inference have been removed.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -54,15 +54,6 @@ export interface AnnotationInput {
   productTitle?: string | null;
   productDescription?: string | null;
   materials?: string | null;
-}
-
-/**
- * v2 is the default path as of PR 4. Opt out by setting REQUIREMENTS_V2=false.
- * The legacy path (findCachedRequirement + computeDeepReview) will be removed
- * in PR 5 once v2 is stable in prod.
- */
-export function isRequirementsV2Enabled(): boolean {
-  return process.env.REQUIREMENTS_V2 !== "false";
 }
 
 function normalizeOrigin(origin: string | null | undefined): string {

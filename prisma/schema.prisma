@@ -148,31 +148,6 @@ model ClassificationRecord {
   @@map("classification_records")
 }
 
-/// DEPRECATED (Option C / issue #15). Shared cache of required documentation
-/// per (HS6, origin, destination). Superseded by ClassificationCatalogAnnotation
-/// which stores per-catalog-row judgments instead of a freehand document list.
-/// The v2 envelope (src/lib/requirements-v2.ts) derives `required_documents`
-/// from annotations at read time. This table is retained read-only for
-/// rollback safety; it will be dropped in PR 5 after v2 is stable.
-model ClassificationRequirement {
-  id                  String    @id @default(uuid()) @db.Uuid
-  hsCodePrefix        String    @map("hs_code_prefix") // 6-digit HS (WCO subheading)
-  originCountry       String    @map("origin_country") // ISO2 or "ANY"
-  destinationCountry  String    @map("destination_country") // ISO2 or "EU"
-  requiredDocuments   Json      @default("[]") @map("required_documents")
-  warnings            Json      @default("[]")
-  status              String // 'flow_validating' | 'verified' | 'manual_override'
-  source              String // 'llm' | 'uk_trade_tariff' | 'taric' | 'ace' | 'manual'
-  confidence          Int?
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  verifiedAt          DateTime? @map("verified_at")
-
-  @@unique([hsCodePrefix, originCountry, destinationCountry])
-  @@index([destinationCountry])
-  @@map("classification_requirements")
-}
-
 /// Cached GRI-step analysis + section/chapter note review per (HS10, attribute hash).
 /// Keyed on full HS10 because rationale is line-specific; attributes hash lets two
 /// records classifying the same product share one row. See src/lib/rationale.ts.
@@ -249,7 +224,7 @@ model CertificateCatalog {
 /// (HS6, origin, destination) the LLM is shown every triggered catalog
 /// entry and asked "does this apply?" — the result is one row per
 /// catalog entry, not per document. Replaces the freehand
-/// `required_documents` JSON on ClassificationRequirement. See
+/// freehand `required_documents` cache that was removed in PR 5. See
 /// src/lib/catalog-annotations.ts. (Option C refactor — issue #15.)
 model ClassificationCatalogAnnotation {
   id                 String    @id @default(uuid()) @db.Uuid

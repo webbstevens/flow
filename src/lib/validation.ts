@@ -160,19 +160,6 @@ const complianceWarningSchema = z
   })
   .meta({ id: "ComplianceWarning" });
 
-const requiredDocumentSchema = z
-  .object({
-    certificate_code: z.string().meta({ example: "Y901" }),
-    name: z.string().meta({ example: "Not subject to dual-use controls" }),
-    agency: z.string().meta({ example: "DG_TRADE" }),
-    agency_name: z.string().meta({ example: "EU DG Trade" }),
-    jurisdiction: z.enum(["US", "EU", "UK", "INTL"]),
-    type: z.enum(["C", "L", "U", "X", "N", "Y", "PGA"]),
-    severity: z.enum(["required", "alternative", "informational"]),
-    note: z.string().optional(),
-  })
-  .meta({ id: "RequiredDocument" });
-
 const requirementWarningSchema = z
   .object({
     code: z.string(),
@@ -192,12 +179,6 @@ const requirementEnvelopeSchema = z
     confidence: z.number().int().min(0).max(100).nullable(),
     destination_country: z.string(),
     origin_country: z.string(),
-    required_documents: z
-      .array(requiredDocumentSchema)
-      .meta({
-        description:
-          "DEPRECATED — derived from `catalog_entries` where `applies=true`. Retained for backwards compatibility with pre-v2 consumers; will be removed after a deprecation window. New integrations should read `catalog_entries` directly.",
-      }),
     warnings: z.array(requirementWarningSchema),
     updated_at: z.string().datetime(),
     verified_at: z.string().datetime().nullable(),
