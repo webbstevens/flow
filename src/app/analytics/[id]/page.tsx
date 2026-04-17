@@ -137,7 +137,7 @@ export default async function AnalyticsDetailPage({
         {/* Main column */}
         <div>
           {/* Hero image */}
-          <div className="bg-surface-lowest rounded-3xl overflow-hidden aspect-[16/10] mb-6">
+          <div className="bg-surface-lowest rounded-3xl overflow-hidden aspect-[16/10] mb-6 w-1/4">
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -159,8 +159,21 @@ export default async function AnalyticsDetailPage({
             <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-accent">
               Classification record
             </p>
-            <h1 className="font-serif italic text-[2.25rem] leading-[1.1] mt-3 text-primary">
-              {record.sourceTitle ?? "Untitled product"}
+            <h1 className="mt-3">
+              <EditableField
+                initial={record.sourceTitle}
+                save={saveRecordText.bind(null, record.id, "sourceTitle")}
+                maxLength={500}
+                placeholder="Untitled product"
+                ariaLabel="Product title"
+                className={
+                  "w-full bg-transparent font-serif italic text-[2.25rem] leading-[1.1] text-primary " +
+                  "rounded-md px-2 py-1 -mx-2 -my-1 " +
+                  "border border-transparent hover:border-surface-container focus:border-accent " +
+                  "focus:outline-none focus:ring-0 transition " +
+                  "placeholder:text-primary/30"
+                }
+              />
             </h1>
             <div className="flex flex-wrap items-center gap-3 mt-4">
               <span className="font-mono text-lg text-primary">

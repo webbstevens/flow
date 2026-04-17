@@ -18,6 +18,7 @@ export function EditableField({
   placeholder = "—",
   maxLength,
   ariaLabel,
+  className,
 }: {
   initial: string | null;
   save: (value: string) => Promise<void>;
@@ -25,6 +26,12 @@ export function EditableField({
   placeholder?: string;
   maxLength?: number;
   ariaLabel?: string;
+  /**
+   * Override the default input/textarea class. Use this for hero-style
+   * fields (large serif headings, etc.) that shouldn't inherit the
+   * compact row styling.
+   */
+  className?: string;
 }) {
   const initialString = initial ?? "";
   const [value, setValue] = useState(initialString);
@@ -53,9 +60,10 @@ export function EditableField({
   }
 
   const sharedClass =
+    className ??
     "w-full bg-transparent font-sans text-sm text-primary rounded-md px-2 py-1 -mx-2 -my-1 " +
-    "border border-transparent hover:border-surface-container focus:border-accent " +
-    "focus:outline-none focus:ring-0 transition";
+      "border border-transparent hover:border-surface-container focus:border-accent " +
+      "focus:outline-none focus:ring-0 transition";
 
   return (
     <div>
