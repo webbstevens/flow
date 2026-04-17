@@ -17,7 +17,7 @@ const ClassificationSchema = z.object({
     .describe("Classification confidence 0-100"),
   requires_review: z
     .boolean()
-    .describe("True if confidence < 70 or there is meaningful ambiguity"),
+    .describe("True if confidence < 80 or there is meaningful ambiguity"),
   country_of_origin: z
     .string()
     .describe(
@@ -108,7 +108,9 @@ export async function classifyWithClaude(
   }
 
   const result = response.parsed_output;
-  if (result.confidence_score < 70) {
+  // Business rule: any score below 80 requires human review before the
+  // classification can be used to auto-generate customs documents.
+  if (result.confidence_score < 80) {
     result.requires_review = true;
   }
   return result;
