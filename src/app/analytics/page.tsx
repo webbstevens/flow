@@ -1,6 +1,59 @@
-export default function AnalyticsPage() {
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser, getWorkspaceId } from "@/lib/session";
+import { publicUrlForPath } from "@/lib/image-storage";
+import { MetricCard } from "./_components/MetricCard";
+import { RecordsTable, type RecordRow } from "./_components/RecordsTable";
+
+export default async function AnalyticsPage() {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const workspaceId = await getWorkspaceId();
+  if (!workspaceId) {
+    redirect("/account/init");
+  }
+
+  const [records, total, needsReview, restricted, avgConfidence] =
+    await Promise.all([
+      prisma.classificationRecord.findMany({
+        where: { workspaceId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.classificationRecord.count({ where: { workspaceId } }),
+      prisma.classificationRecord.count({
+        where: { workspaceId, requiresReview: true },
+      }),
+      prisma.classificationRecord.count({
+        where: { workspaceId, restrictedGoodsFlag: true },
+      }),
+      prisma.classificationRecord.aggregate({
+        where: { workspaceId },
+        _avg: { confidenceScore: true },
+      }),
+    ]);
+
+  const rows: RecordRow[] = records.map((r) => ({
+    id: r.id,
+    imageUrl: publicUrlForPath(r.imageStoragePath),
+    hsCode: r.hsCode,
+    title: r.sourceTitle,
+    productUrl: r.productUrl,
+    confidenceScore: r.confidenceScore,
+    requiresReview: r.requiresReview,
+    restrictedGoodsFlag: r.restrictedGoodsFlag,
+    countryOfOrigin: r.countryOfOrigin,
+    createdAt: r.createdAt.toISOString(),
+  }));
+
+  const avg = avgConfidence._avg.confidenceScore;
+  const avgDisplay = avg != null ? `${Math.round(avg)}%` : "—";
+
   return (
-    <main className="max-w-4xl mx-auto px-6 pt-4 pb-10">
+    <main className="max-w-6xl mx-auto px-6 pt-4 pb-10">
       <header className="mb-10">
         <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-accent">
           Flow · Intelligence
@@ -9,111 +62,38 @@ export default function AnalyticsPage() {
           Catalog Intelligence
         </h1>
         <p className="text-sm text-on-surface-variant mt-4 max-w-lg">
-          Classification activity across your workspace this week.
+          Every product you&apos;ve classified, with compliance status at a glance.
         </p>
       </header>
 
-      {/* Hero stat */}
-      <section className="bg-surface-lowest rounded-3xl p-8 md:p-10 mb-6">
-        <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50">
-          Classifications · last 7 days
-        </p>
-        <p className="font-serif italic text-[4rem] md:text-[5.5rem] leading-none mt-4 text-primary tracking-tight">
-          1,284
-        </p>
-        <div className="mt-6 h-[2px] rounded-full overflow-hidden bg-surface-container">
-          <div className="flow-indicator h-full w-full" />
-        </div>
-        <p className="text-xs text-primary/50 mt-3 font-sans">
-          Live · processing
-        </p>
-      </section>
-
-      {/* Secondary metrics */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Metric cards */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <MetricCard
-          label="Avg confidence"
-          value="89%"
-          sub="across all classifications"
-          tint="green"
+          label="Total classifications"
+          value={total}
+          sub={total === 0 ? "No evaluations yet" : "All-time"}
         />
         <MetricCard
           label="Needs review"
-          value="12"
-          sub="confidence below 70"
-          tint="amber"
+          value={needsReview}
+          sub={needsReview > 0 ? "Low-confidence evaluations" : "All clear"}
+          tint={needsReview > 0 ? "amber" : "neutral"}
         />
         <MetricCard
-          label="Top HS chapter"
-          value="61"
-          sub="Apparel, knit or crocheted"
-          tint="neutral"
+          label="Restricted goods"
+          value={restricted}
+          sub={restricted > 0 ? "Flagged for review" : "None flagged"}
+          tint={restricted > 0 ? "red" : "neutral"}
+        />
+        <MetricCard
+          label="Avg confidence"
+          value={avgDisplay}
+          sub="Across all records"
+          tint={avg != null && avg >= 85 ? "green" : "neutral"}
         />
       </section>
 
-      {/* Top codes */}
-      <section className="mt-6 bg-surface-lowest rounded-3xl p-8">
-        <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50 mb-6">
-          Top HS codes this week
-        </p>
-        <ul className="space-y-4">
-          {TOP_CODES.map((row, i) => (
-            <li key={i} className="flex items-center gap-4">
-              <span className="font-serif italic text-xl text-primary w-24">
-                {row.code}
-              </span>
-              <span className="text-sm text-primary/70 flex-1">
-                {row.label}
-              </span>
-              <div className="w-40 h-[6px] bg-surface-container rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full"
-                  style={{ width: `${row.pct}%` }}
-                />
-              </div>
-              <span className="text-xs text-primary/50 w-12 text-right">
-                {row.count}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <RecordsTable rows={rows} />
     </main>
   );
 }
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  tint,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tint: "green" | "amber" | "neutral";
-}) {
-  const accent =
-    tint === "green"
-      ? "text-on-secondary"
-      : tint === "amber"
-        ? "text-amber-900"
-        : "text-primary";
-  return (
-    <div className="bg-surface-lowest rounded-3xl p-6">
-      <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50">
-        {label}
-      </p>
-      <p className={`font-serif italic text-4xl mt-2 ${accent}`}>{value}</p>
-      <p className="text-xs text-primary/50 mt-2">{sub}</p>
-    </div>
-  );
-}
-
-const TOP_CODES = [
-  { code: "6109.10", label: "T-shirts, knit cotton", pct: 100, count: 342 },
-  { code: "8518.30", label: "Headphones", pct: 62, count: 214 },
-  { code: "4202.21", label: "Leather handbags", pct: 41, count: 141 },
-  { code: "1509.20", label: "Olive oil, extra virgin", pct: 28, count: 96 },
-  { code: "6403.99", label: "Footwear, leather upper", pct: 19, count: 66 },
-];

@@ -61,10 +61,17 @@ export const classifyRequestSchema = z
     productId: z.string().uuid().optional(),
     productUrl: z
       .string()
-      .url()
+      .transform((v) => {
+        // Normalize bare domains: gymshark.com/... → https://gymshark.com/...
+        if (v && !/^https?:\/\//i.test(v)) {
+          return `https://${v}`;
+        }
+        return v;
+      })
+      .pipe(z.string().url())
       .meta({
         description:
-          "HTTPS URL of a product page. The server will fetch it, extract title/description/brand/image from meta tags + JSON-LD, and classify.",
+          "URL of a product page (protocol optional — bare domains like gymshark.com/... are accepted). The server will fetch it, extract title/description/brand/image from meta tags + JSON-LD, and classify.",
         example: "https://www.example.com/products/organic-cotton-tee",
       })
       .optional(),
