@@ -295,6 +295,111 @@ export const errorSchema = z
   })
   .meta({ id: "ErrorResponse" });
 
+// ---------------------------------------------------------------------------
+// Rationale (GRI analysis + note review)
+// ---------------------------------------------------------------------------
+
+const griStepSchema = z
+  .object({
+    rule: z.enum([
+      "GRI 1",
+      "GRI 2(a)",
+      "GRI 2(b)",
+      "GRI 3(a)",
+      "GRI 3(b)",
+      "GRI 3(c)",
+      "GRI 4",
+      "GRI 5(a)",
+      "GRI 5(b)",
+      "GRI 6",
+    ]),
+    reasoning: z.string(),
+    outcome: z.enum([
+      "provisional_classification",
+      "subheading_selected",
+      "heading_eliminated",
+      "disambiguated",
+    ]),
+  })
+  .meta({ id: "GriStep" });
+
+const noteReviewSchema = z
+  .object({
+    scope: z.string().meta({ example: "chapter_61_note_9" }),
+    text_excerpt: z.string(),
+    relevance: z.enum([
+      "confirms_inclusion",
+      "confirms_exclusion",
+      "clarifies_definition",
+    ]),
+  })
+  .meta({ id: "NoteReview" });
+
+export const rationaleEnvelopeSchema = z
+  .object({
+    classification_id: z.string().uuid(),
+    hs_code: z.string().meta({ example: "6109.10.0012" }),
+    status: z
+      .enum(["flow_validating", "verified", "manual_override"])
+      .meta({
+        description:
+          "`flow_validating` = LLM-generated, pending verification against WCO explanatory notes. `verified` = reconciled. `manual_override` = operator-edited.",
+      }),
+    source: z.enum(["llm", "wco_explanatory_notes", "manual"]),
+    confidence: z.number().int().min(0).max(100).nullable(),
+    gri_steps: z.array(griStepSchema),
+    notes_reviewed: z.array(noteReviewSchema),
+    generated_at: z.string().datetime(),
+    verified_at: z.string().datetime().nullable(),
+  })
+  .meta({ id: "RationaleEnvelope" });
+
+export const rationaleResponseSchema = z
+  .object({
+    status: z.literal("success"),
+    data: rationaleEnvelopeSchema,
+  })
+  .meta({ id: "RationaleResponse" });
+
+// ---------------------------------------------------------------------------
+// Precedents (CROSS rulings — v1 stub)
+// ---------------------------------------------------------------------------
+
+const crossRulingSchema = z
+  .object({
+    ruling_number: z.string().meta({ example: "NY N123456" }),
+    date: z.string().meta({ example: "2023-06-15" }),
+    hs_code: z.string(),
+    product: z.string(),
+    url: z.string().url(),
+    relevance: z.number().int().min(0).max(100),
+  })
+  .meta({ id: "CrossRuling" });
+
+export const precedentsEnvelopeSchema = z
+  .object({
+    classification_id: z.string().uuid(),
+    hs_code: z.string(),
+    hs6: z.string().meta({ example: "610910" }),
+    status: z.enum(["flow_validating", "verified", "manual_override"]),
+    source: z.enum(["cross_stub", "cross_scrape", "cross_api"]).meta({
+      description:
+        "`cross_stub` = placeholder during closed beta (empty rulings array, see `notice`). `cross_scrape`/`cross_api` = live sources once the fetcher ships.",
+    }),
+    rulings: z.array(crossRulingSchema),
+    notice: z.string().nullable(),
+    updated_at: z.string().datetime(),
+    expires_at: z.string().datetime().nullable(),
+  })
+  .meta({ id: "PrecedentsEnvelope" });
+
+export const precedentsResponseSchema = z
+  .object({
+    status: z.literal("success"),
+    data: precedentsEnvelopeSchema,
+  })
+  .meta({ id: "PrecedentsResponse" });
+
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ClassifyRequest = z.infer<typeof classifyRequestSchema>;

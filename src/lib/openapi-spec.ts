@@ -7,7 +7,9 @@ import {
   errorSchema,
   historyResponseSchema,
   paginatedProductsSchema,
+  precedentsResponseSchema,
   productSchema,
+  rationaleResponseSchema,
   updateProductSchema,
 } from "./validation";
 
@@ -24,8 +26,13 @@ export function generateOpenApiSpec() {
     info: {
       title: "Flow Marketplace Engine API",
       description:
-        "API-first cross-border logistics and compliance classification engine.",
-      version: "0.1.0",
+        "API-first cross-border logistics and compliance classification engine.\n\n" +
+        "### Audit-grade output\n\n" +
+        "`POST /compliance/classify` is the lean, low-latency primary call — it returns the HS code, compliance envelope, and documentation requirements in a single response. For customers who need a full audit trail (brokers, enterprise compliance), two lazy GET endpoints produce the justification material on demand:\n\n" +
+        "- `GET /compliance/classify/{id}/rationale` — General Rules of Interpretation (GRI 1–6) step analysis plus section/chapter notes reviewed.\n" +
+        "- `GET /compliance/classify/{id}/precedents` — CBP CROSS ruling precedents for the classification (closed beta in v1).\n\n" +
+        "Both follow the same lifecycle as documentation requirements: `flow_validating` (LLM-generated) → `verified` (reconciled against an authoritative source) → `manual_override` (operator-edited).",
+      version: "0.2.0",
       contact: { name: "Flow Team" },
     },
     servers: [
@@ -151,6 +158,68 @@ export function generateOpenApiSpec() {
             },
             "400": errorResponse("Validation error"),
             "500": errorResponse("Internal server error"),
+          },
+        },
+      },
+      "/api/v1/compliance/classify/{id}/rationale": {
+        get: {
+          operationId: "getClassificationRationale",
+          summary: "Audit-grade classification rationale (GRI analysis)",
+          description:
+            "Returns the legal reasoning behind the classification: the General Rules of Interpretation (GRIs 1–6) that were applied, the outcome of each step, and any section/chapter notes that were reviewed. Lazy — first call generates via Claude and persists a cached row keyed on `(hs_code, attributes_hash)`; subsequent calls (including any record with the same product attributes) hit the cache. Lifecycle: `flow_validating` → `verified` → `manual_override`. Accepts either a Bearer API key or a session cookie; the record must belong to the caller's workspace.",
+          tags: ["Compliance", "Audit"],
+          security: [{ BearerAuth: [] }],
+          requestParams: {
+            path: z.object({
+              id: z.string().uuid().meta({
+                description: "Classification record id (from POST /classify).",
+              }),
+            }),
+          },
+          responses: {
+            "200": {
+              description: "Rationale envelope",
+              content: {
+                "application/json": { schema: rationaleResponseSchema },
+              },
+            },
+            "401": errorResponse("Authentication required"),
+            "404": errorResponse(
+              "Record not found or not owned by this workspace",
+            ),
+            "429": errorResponse("Rate limit exceeded"),
+            "502": errorResponse("Rationale generation failed"),
+          },
+        },
+      },
+      "/api/v1/compliance/classify/{id}/precedents": {
+        get: {
+          operationId: "getClassificationPrecedents",
+          summary: "CROSS ruling precedents (closed beta)",
+          description:
+            "Returns CBP CROSS (Customs Rulings Online) precedent matches for the record's HS code + product attributes. **v1 is a stub** — the response shape is stable but the `rulings` array is empty and a `notice` field explains the closed-beta state. When the real fetcher ships, existing integrations pick up populated rulings automatically. Cached per `(HS6, query_hash)` so sibling subheadings share results. Accepts either a Bearer API key or a session cookie.",
+          tags: ["Compliance", "Audit"],
+          security: [{ BearerAuth: [] }],
+          requestParams: {
+            path: z.object({
+              id: z.string().uuid().meta({
+                description: "Classification record id.",
+              }),
+            }),
+          },
+          responses: {
+            "200": {
+              description: "Precedents envelope",
+              content: {
+                "application/json": { schema: precedentsResponseSchema },
+              },
+            },
+            "401": errorResponse("Authentication required"),
+            "404": errorResponse(
+              "Record not found or not owned by this workspace",
+            ),
+            "429": errorResponse("Rate limit exceeded"),
+            "502": errorResponse("Precedents lookup failed"),
           },
         },
       },

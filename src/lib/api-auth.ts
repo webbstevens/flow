@@ -1,6 +1,8 @@
 import { prisma } from "./prisma";
 import { hashApiKey } from "./api-keys";
 import { errorResponse } from "./errors";
+import { getWorkspaceId } from "./session";
+import { checkRateLimit } from "./rate-limit";
 
 export class ApiKeyError extends Error {
   constructor(
@@ -52,6 +54,58 @@ export async function requireApiKey(request: Request) {
     });
 
   return apiKey;
+}
+
+/**
+ * Resolve the caller's workspace using either a Bearer API key (preferred
+ * when the header is present) or the session cookie. Designed for routes
+ * that want to accept both patterns — e.g. the audit endpoints, which are
+ * called both by the /analytics UI (session) and by broker scripts (API key).
+ *
+ * Returns a result object so the caller can distinguish "no auth provided"
+ * from "invalid API key" from "rate limited" and emit the right status code.
+ */
+export type CallerResolution =
+  | { ok: true; workspaceId: string; keyPrefix: string | null }
+  | { ok: false; status: number; message: string; keyPrefix?: string | null };
+
+export async function resolveCallerWorkspace(
+  request: Request,
+): Promise<CallerResolution> {
+  const header = request.headers.get("authorization");
+
+  // API-key path: if an Authorization header is present, it must be valid.
+  if (header) {
+    try {
+      const apiKey = await requireApiKey(request);
+      const rl = checkRateLimit(apiKey.prefix);
+      if (!rl.allowed) {
+        return {
+          ok: false,
+          status: 429,
+          message: "Rate limit exceeded. Max 10 requests per minute.",
+          keyPrefix: apiKey.prefix,
+        };
+      }
+      return {
+        ok: true,
+        workspaceId: apiKey.workspaceId,
+        keyPrefix: apiKey.prefix,
+      };
+    } catch (err) {
+      if (err instanceof ApiKeyError) {
+        return { ok: false, status: err.status, message: err.message };
+      }
+      throw err;
+    }
+  }
+
+  // Session path.
+  const workspaceId = await getWorkspaceId();
+  if (!workspaceId) {
+    return { ok: false, status: 401, message: "Authentication required" };
+  }
+  return { ok: true, workspaceId, keyPrefix: null };
 }
 
 /**

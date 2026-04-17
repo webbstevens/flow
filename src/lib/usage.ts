@@ -49,6 +49,8 @@ export async function getMonthlyUsage(workspaceId: string) {
 /** Human-readable endpoint labels for display */
 export const ENDPOINT_LABELS: Record<string, string> = {
   classify: "Classifications",
+  rationale: "Classification rationale",
+  precedents: "Classification precedents",
   "products.create": "Products created",
   "products.list": "Product listings",
   "products.update": "Product updates",
