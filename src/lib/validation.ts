@@ -59,6 +59,15 @@ export const updateProductSchema = z
 export const classifyRequestSchema = z
   .object({
     productId: z.string().uuid().optional(),
+    productUrl: z
+      .string()
+      .url()
+      .meta({
+        description:
+          "HTTPS URL of a product page. The server will fetch it, extract title/description/brand/image from meta tags + JSON-LD, and classify.",
+        example: "https://www.example.com/products/organic-cotton-tee",
+      })
+      .optional(),
     title: z.string().min(1).optional(),
     description: z.string().optional(),
     category: z.string().optional(),
@@ -73,14 +82,20 @@ export const classifyRequestSchema = z
       })
       .optional(),
   })
-  .refine((v) => Boolean(v.title) || (v.images && v.images.length > 0), {
-    message: "Either 'title' or at least one image is required",
-    path: ["title"],
-  })
+  .refine(
+    (v) =>
+      Boolean(v.title) ||
+      Boolean(v.productUrl) ||
+      (v.images && v.images.length > 0),
+    {
+      message: "One of 'title', 'productUrl', or 'images' is required",
+      path: ["productUrl"],
+    },
+  )
   .meta({
     id: "ClassifyRequest",
     description:
-      "Either `title` or at least one image in `images` must be provided.",
+      "One of `title`, `productUrl`, or at least one image in `images` must be provided.",
   });
 
 // Response schemas (used for docs only — routes currently return Prisma types directly)
@@ -139,10 +154,70 @@ export const classifyResponseSchema = z
       mid_code: z.string(),
       confidence_score: z.number().int().min(0).max(100),
       requires_review: z.boolean(),
+      country_of_origin: z
+        .string()
+        .meta({ description: "ISO 3166-1 alpha-2 country code, or empty string if unknown", example: "PT" }),
+      materials: z
+        .string()
+        .meta({ description: "Primary material composition", example: "100% organic cotton" }),
+      restricted_goods_flag: z
+        .boolean()
+        .meta({
+          description:
+            "True if the product may be subject to CITES, dual-use, sanctions, or other cross-border restrictions.",
+        }),
+      product_description_for_customs: z
+        .string()
+        .meta({
+          description: "Standardized 1-sentence customs declaration description.",
+          example: "Men's knitted t-shirt, 100% cotton, short sleeve.",
+        }),
       ai_attributes: z.record(z.string(), z.any()),
+      record_id: z
+        .string()
+        .uuid()
+        .meta({ description: "ClassificationRecord id for this evaluation." }),
+      image_url: z
+        .string()
+        .url()
+        .nullable()
+        .meta({
+          description:
+            "Public URL to the evaluated image in Supabase Storage, or null if persistence was disabled.",
+        }),
     }),
   })
   .meta({ id: "ClassifyResponse" });
+
+export const classificationRecordSchema = z
+  .object({
+    id: z.string().uuid(),
+    product_url: z.string().url().nullable(),
+    source_title: z.string().nullable(),
+    image_url: z.string().url().nullable(),
+    hs_code: z.string(),
+    mid_code: z.string().nullable(),
+    confidence_score: z.number().int().min(0).max(100),
+    requires_review: z.boolean(),
+    country_of_origin: z.string().nullable(),
+    materials: z.string().nullable(),
+    restricted_goods_flag: z.boolean(),
+    product_description_for_customs: z.string().nullable(),
+    ai_attributes: z.record(z.string(), z.any()).nullable(),
+    created_at: z.string().datetime(),
+  })
+  .meta({ id: "ClassificationRecord" });
+
+export const historyResponseSchema = z
+  .object({
+    data: z.array(classificationRecordSchema),
+    pagination: z.object({
+      page: z.number().int(),
+      limit: z.number().int(),
+      total: z.number().int(),
+    }),
+  })
+  .meta({ id: "HistoryResponse" });
 
 export const errorSchema = z
   .object({

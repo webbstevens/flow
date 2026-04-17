@@ -125,3 +125,24 @@ model UsageCounter {
   @@index([workspaceId, month])
   @@map("usage_counters")
 }
+
+model ClassificationRecord {
+  id                  String   @id @default(uuid()) @db.Uuid
+  workspaceId         String?  @map("workspace_id") @db.Uuid
+  productUrl          String?  @map("product_url")
+  sourceTitle         String?  @map("source_title")
+  imageStoragePath    String?  @map("image_storage_path")
+  hsCode              String   @map("hs_code")
+  midCode             String?  @map("mid_code")
+  confidenceScore     Int      @map("confidence_score")
+  requiresReview      Boolean  @default(false) @map("requires_review")
+  countryOfOrigin     String?  @map("country_of_origin")
+  materials           String?
+  restrictedGoodsFlag Boolean  @default(false) @map("restricted_goods_flag")
+  customsDescription  String?  @map("customs_description")
+  aiAttributes        Json?    @map("ai_attributes")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt])
+  @@map("classification_records")
+}

@@ -5,6 +5,7 @@ import {
   classifyResponseSchema,
   createProductSchema,
   errorSchema,
+  historyResponseSchema,
   paginatedProductsSchema,
   productSchema,
   updateProductSchema,
@@ -133,7 +134,7 @@ export function generateOpenApiSpec() {
           operationId: "classifyProduct",
           summary: "AI compliance classification",
           description:
-            "Classify a product using Claude vision. Falls back to a mock response when ANTHROPIC_API_KEY is not configured.",
+            "Classify a product using Claude vision. Accepts a product page URL (scraped server-side), a title/description payload, or base64 images. The evaluated image is persisted to Supabase Storage and the result is saved to `classification_records`. Falls back to a mock response when ANTHROPIC_API_KEY is not configured.",
           tags: ["Compliance"],
           requestBody: {
             required: true,
@@ -149,6 +150,30 @@ export function generateOpenApiSpec() {
               },
             },
             "400": errorResponse("Validation error"),
+            "500": errorResponse("Internal server error"),
+          },
+        },
+      },
+      "/api/v1/compliance/history": {
+        get: {
+          operationId: "listClassificationHistory",
+          summary: "Recent classifications for the current workspace",
+          description:
+            "Returns the workspace's recent `ClassificationRecord` entries, newest first. Each entry includes a public URL to the evaluated image (if persistence was enabled at classification time).",
+          tags: ["Compliance"],
+          requestParams: {
+            query: z.object({
+              page: z.coerce.number().int().min(1).default(1).optional(),
+              limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
+            }),
+          },
+          responses: {
+            "200": {
+              description: "Paginated history list",
+              content: {
+                "application/json": { schema: historyResponseSchema },
+              },
+            },
             "500": errorResponse("Internal server error"),
           },
         },

@@ -1,0 +1,84 @@
+import { type NextRequest } from "next/server";
+import { errorResponse } from "@/lib/errors";
+import { prisma } from "@/lib/prisma";
+import { getWorkspaceId } from "@/lib/session";
+import { publicUrlForPath } from "@/lib/image-storage";
+import { generateRequestId, logRequest } from "@/lib/request-logger";
+
+export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
+  const start = Date.now();
+  let statusCode = 500;
+  let errorMsg: string | undefined;
+
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) {
+      statusCode = 200;
+      const res = Response.json({
+        data: [],
+        pagination: { page: 1, limit: 0, total: 0 },
+      });
+      res.headers.set("X-Request-Id", requestId);
+      return res;
+    }
+
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+    const limit = Math.min(
+      100,
+      Math.max(1, Number(searchParams.get("limit") ?? "20")),
+    );
+
+    const [rows, total] = await Promise.all([
+      prisma.classificationRecord.findMany({
+        where: { workspaceId },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.classificationRecord.count({ where: { workspaceId } }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      product_url: r.productUrl,
+      source_title: r.sourceTitle,
+      image_url: publicUrlForPath(r.imageStoragePath),
+      hs_code: r.hsCode,
+      mid_code: r.midCode,
+      confidence_score: r.confidenceScore,
+      requires_review: r.requiresReview,
+      country_of_origin: r.countryOfOrigin,
+      materials: r.materials,
+      restricted_goods_flag: r.restrictedGoodsFlag,
+      product_description_for_customs: r.customsDescription,
+      ai_attributes: r.aiAttributes,
+      created_at: r.createdAt.toISOString(),
+    }));
+
+    statusCode = 200;
+    const res = Response.json({
+      data,
+      pagination: { page, limit, total },
+    });
+    res.headers.set("X-Request-Id", requestId);
+    return res;
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Internal server error";
+    errorMsg = message;
+    const res = errorResponse(message, 500);
+    res.headers.set("X-Request-Id", requestId);
+    return res;
+  } finally {
+    logRequest({
+      requestId,
+      method: "GET",
+      path: "/api/v1/compliance/history",
+      statusCode,
+      responseMs: Date.now() - start,
+      errorMsg,
+    });
+  }
+}
