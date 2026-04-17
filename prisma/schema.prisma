@@ -190,6 +190,55 @@ model ClassificationRationale {
   @@map("classification_rationales")
 }
 
+/// Registry of US federal agencies whose rules can touch imports (CBP PGAs +
+/// adjacent regulators — FDA, APHIS, FWS, EPA, CPSC, TTB, DDTC, OFAC, etc.).
+/// Used as a reference the classify/requirements prompt constrains against so
+/// Claude can't invent certificate codes. See scripts/seed-regulation-catalog.ts.
+model RegulationAgency {
+  id               String    @id @default(uuid()) @db.Uuid
+  code             String    @unique // 'FDA', 'APHIS', 'FWS', 'DOT_NHTSA', ...
+  name             String // 'Food and Drug Administration'
+  parentDepartment String    @map("parent_department") // 'HHS', 'USDA', 'DOI', 'DOT', 'Treasury'
+  scope            String // one-line description of what they regulate at the border
+  pgaCode          String?   @map("pga_code") // CBP ACE PGA message set code, nullable
+  url              String? // official agency page
+  status           String // 'flow_validating' | 'verified' | 'manual_override'
+  source           String // 'llm' | 'cbp_pga' | 'manual'
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  verifiedAt       DateTime? @map("verified_at")
+
+  certificates CertificateCatalog[]
+
+  @@map("regulation_agencies")
+}
+
+/// Canonical list of documents / certificates / filings that can be required
+/// at US import. Each row belongs to exactly one RegulationAgency. The
+/// classify/requirements prompt is fed this catalog; LLM output must reference
+/// `code` values from this table rather than inventing new strings.
+model CertificateCatalog {
+  id                    String    @id @default(uuid()) @db.Uuid
+  code                  String    @unique // 'FDA_2877', 'FWS_3_177', 'EPA_3520_1', 'CPSC_GCC'
+  agencyCode            String    @map("agency_code") // FK to regulation_agencies.code
+  title                 String // human-readable
+  formNumber            String?   @map("form_number") // '3-177', '2877', nullable
+  description           String // 1-3 sentences: what it is + when it applies
+  triggeringHsChapters  Json      @default("[]") @map("triggering_hs_chapters") // [41, 42, 64] — HS2 chapters this typically touches; empty = any
+  defaultSeverity       String    @map("default_severity") // 'required' | 'conditional' | 'informational'
+  url                   String? // link to the form or agency guidance
+  status                String // 'flow_validating' | 'verified' | 'manual_override'
+  source                String // 'llm' | 'cbp_pga' | 'manual'
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  verifiedAt            DateTime? @map("verified_at")
+
+  agency RegulationAgency @relation(fields: [agencyCode], references: [code], onDelete: Restrict)
+
+  @@index([agencyCode])
+  @@map("certificate_catalog")
+}
+
 /// CROSS ruling precedent matches per (HS6, query hash). v1 is a stub — the route
 /// ships returning an empty rulings array behind a "closed beta" notice so clients
 /// can integrate against the stable shape. Real fetcher slots into src/lib/precedents.ts.
