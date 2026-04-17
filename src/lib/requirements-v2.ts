@@ -75,7 +75,7 @@ export interface CatalogEntry {
   note: string | null;
 }
 
-function normalizeSeverity(raw: string): DocumentSeverity {
+export function normalizeSeverity(raw: string): DocumentSeverity {
   if (raw === "required" || raw === "alternative" || raw === "informational") {
     return raw;
   }
@@ -84,7 +84,7 @@ function normalizeSeverity(raw: string): DocumentSeverity {
   return "required";
 }
 
-function deriveEntryStatus(args: {
+export function deriveEntryStatus(args: {
   triggered: boolean;
   applies: boolean;
   severity: DocumentSeverity;
