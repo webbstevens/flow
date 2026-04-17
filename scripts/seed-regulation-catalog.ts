@@ -86,6 +86,11 @@ const AgencySchema = z.object({
             "HS2 chapters (1-99) this document typically applies to. Empty array = all.",
           ),
         default_severity: z.enum(["required", "conditional", "informational"]),
+        type: z
+          .enum(["C", "L", "U", "X", "N", "Y", "PGA"])
+          .describe(
+            "TARIC-style code: C=certificate, L=import licence, U=origin declaration, X=export licence, N=other doc, Y=negative declaration. For US PGA flags use 'PGA'.",
+          ),
         url: z.string().url().nullable(),
       }),
     )
@@ -150,6 +155,8 @@ async function portStaticCatalog(): Promise<{
     agencyCode: string;
     title: string;
     description: string;
+    jurisdiction: string;
+    type: string;
   }> = [];
 
   const hints: Record<string, { name: string; dept: string; scope: string }> = {
@@ -218,6 +225,8 @@ async function portStaticCatalog(): Promise<{
       agencyCode: canonical,
       title: entry.name,
       description: entry.description,
+      jurisdiction: entry.jurisdiction,
+      type: entry.type,
     });
   }
 
@@ -249,6 +258,8 @@ async function portStaticCatalog(): Promise<{
         title: c.title,
         formNumber: null,
         description: c.description,
+        jurisdiction: c.jurisdiction,
+        type: c.type,
         triggeringHsChapters: [],
         defaultSeverity: "required",
         url: null,
@@ -256,7 +267,12 @@ async function portStaticCatalog(): Promise<{
         source: "manual",
         verifiedAt: new Date(),
       },
-      update: {},
+      // Always sync jurisdiction/type for verified static rows so the seeder
+      // stays the single source of truth for these fields on manual entries.
+      update: {
+        jurisdiction: c.jurisdiction,
+        type: c.type,
+      },
     });
   }
 
@@ -325,6 +341,8 @@ async function upsertInferred(catalog: InferredCatalog) {
             title: cert.title,
             formNumber: cert.form_number,
             description: cert.description,
+            jurisdiction: "US",
+            type: cert.type,
             triggeringHsChapters: cert.triggering_hs_chapters,
             defaultSeverity: cert.default_severity,
             url: cert.url,
@@ -341,6 +359,8 @@ async function upsertInferred(catalog: InferredCatalog) {
             title: cert.title,
             formNumber: cert.form_number,
             description: cert.description,
+            jurisdiction: "US",
+            type: cert.type,
             triggeringHsChapters: cert.triggering_hs_chapters,
             defaultSeverity: cert.default_severity,
             url: cert.url,

@@ -373,11 +373,29 @@ export const CERTIFICATE_CATALOG = {
   BILL_OF_LADING: {
     code: "BILL_OF_LADING",
     type: "N",
-    name: "Bill of lading / airway bill",
+    name: "Bill of lading",
     agency: "NONE",
     jurisdiction: "INTL",
     description:
-      "Carrier-issued transport document and title to the goods.",
+      "Ocean carrier-issued transport document and title to the goods.",
+  },
+  AIRWAY_BILL: {
+    code: "AIRWAY_BILL",
+    type: "N",
+    name: "Airway bill",
+    agency: "NONE",
+    jurisdiction: "INTL",
+    description:
+      "Air carrier-issued transport document acknowledging receipt of cargo. Non-negotiable; does not convey title.",
+  },
+  PROFORMA_INVOICE: {
+    code: "PROFORMA_INVOICE",
+    type: "N",
+    name: "Proforma invoice",
+    agency: "NONE",
+    jurisdiction: "INTL",
+    description:
+      "Preliminary invoice issued before shipment, used for customs pre-clearance, letters of credit, and import licences where a commercial invoice is not yet available.",
   },
 } as const satisfies Record<string, CertificateEntry>;
 

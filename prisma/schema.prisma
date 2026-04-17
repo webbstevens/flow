@@ -224,8 +224,10 @@ model CertificateCatalog {
   title                 String // human-readable
   formNumber            String?   @map("form_number") // '3-177', '2877', nullable
   description           String // 1-3 sentences: what it is + when it applies
+  jurisdiction          String    @default("US") // 'US' | 'EU' | 'UK' | 'INTL' — which import regime requires this
+  type                  String    @default("N") // TARIC-style: 'C' cert | 'L' licence | 'U' origin | 'X' export | 'N' other | 'Y' negative declaration | 'PGA' US PGA flag
   triggeringHsChapters  Json      @default("[]") @map("triggering_hs_chapters") // [41, 42, 64] — HS2 chapters this typically touches; empty = any
-  defaultSeverity       String    @map("default_severity") // 'required' | 'conditional' | 'informational'
+  defaultSeverity       String    @map("default_severity") // 'required' | 'conditional' | 'alternative' | 'informational'
   url                   String? // link to the form or agency guidance
   status                String // 'flow_validating' | 'verified' | 'manual_override'
   source                String // 'llm' | 'cbp_pga' | 'manual'
