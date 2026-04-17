@@ -153,71 +153,89 @@ export const paginatedProductsSchema = z
   })
   .meta({ id: "PaginatedProducts" });
 
-export const classifyResponseSchema = z
+const complianceWarningSchema = z
   .object({
-    success: z.boolean(),
-    data: z.object({
+    code: z.enum(["LOW_CONFIDENCE", "RESTRICTED_GOODS"]),
+    message: z.string(),
+  })
+  .meta({ id: "ComplianceWarning" });
+
+export const classificationEnvelopeSchema = z
+  .object({
+    classification_id: z.string().uuid(),
+    compliance_status: z.enum(["compliant", "partially_compliant"]).meta({
+      description:
+        "`compliant` requires a 6-10 digit hs_code, a 2-letter ISO country_of_origin, and requires_review=false.",
+    }),
+    classification: z.object({
       hs_code: z.string().meta({ example: "6109.10.0012" }),
-      mid_code: z.string(),
-      confidence_score: z.number().int().min(0).max(100),
-      requires_review: z.boolean(),
-      country_of_origin: z
+      coo: z
         .string()
-        .meta({ description: "ISO 3166-1 alpha-2 country code, or empty string if unknown", example: "PT" }),
-      materials: z
-        .string()
-        .meta({ description: "Primary material composition", example: "100% organic cotton" }),
-      restricted_goods_flag: z
-        .boolean()
+        .nullable()
         .meta({
-          description:
-            "True if the product may be subject to CITES, dual-use, sanctions, or other cross-border restrictions.",
+          description: "ISO 3166-1 alpha-2 country code, or null if unknown",
+          example: "PT",
         }),
-      product_description_for_customs: z
+      mid_code: z.string().nullable(),
+      customs_description: z
         .string()
+        .nullable()
         .meta({
           description: "Standardized 1-sentence customs declaration description.",
           example: "Men's knitted t-shirt, 100% cotton, short sleeve.",
         }),
-      ai_attributes: z.record(z.string(), z.any()),
-      record_id: z
+      materials: z
         .string()
-        .uuid()
-        .meta({ description: "ClassificationRecord id for this evaluation." }),
-      image_url: z
-        .string()
-        .url()
         .nullable()
         .meta({
-          description:
-            "Public URL to the evaluated image in Supabase Storage, or null if persistence was disabled.",
+          description: "Primary material composition",
+          example: "100% organic cotton",
         }),
     }),
+    ai_metadata: z.object({
+      confidence_score: z.number().int().min(0).max(100),
+      requires_review: z.boolean(),
+      attributes: z.record(z.string(), z.any()),
+    }),
+    actionable_flags: z.object({
+      missing_required_fields: z.array(z.string()).meta({
+        description:
+          "Names of required cross-border fields that are missing or invalid. Must be filled in (e.g. via PATCH /products/:id) before the record can be used to auto-generate customs documents.",
+        example: ["country_of_origin"],
+      }),
+      warnings: z.array(complianceWarningSchema),
+      restricted_goods_flag: z.boolean().meta({
+        description:
+          "True if the product may be subject to CITES, dual-use, sanctions, or other cross-border restrictions.",
+      }),
+    }),
+    source: z.object({
+      product_url: z.string().url().nullable(),
+      title: z.string().nullable(),
+    }),
+    image_url: z
+      .string()
+      .url()
+      .nullable()
+      .meta({
+        description:
+          "Public URL to the evaluated image in Supabase Storage, or null if persistence was disabled.",
+      }),
+    created_at: z.string().datetime(),
+  })
+  .meta({ id: "ClassificationEnvelope" });
+
+export const classifyResponseSchema = z
+  .object({
+    status: z.literal("success"),
+    data: classificationEnvelopeSchema,
   })
   .meta({ id: "ClassifyResponse" });
 
-export const classificationRecordSchema = z
-  .object({
-    id: z.string().uuid(),
-    product_url: z.string().url().nullable(),
-    source_title: z.string().nullable(),
-    image_url: z.string().url().nullable(),
-    hs_code: z.string(),
-    mid_code: z.string().nullable(),
-    confidence_score: z.number().int().min(0).max(100),
-    requires_review: z.boolean(),
-    country_of_origin: z.string().nullable(),
-    materials: z.string().nullable(),
-    restricted_goods_flag: z.boolean(),
-    product_description_for_customs: z.string().nullable(),
-    ai_attributes: z.record(z.string(), z.any()).nullable(),
-    created_at: z.string().datetime(),
-  })
-  .meta({ id: "ClassificationRecord" });
-
 export const historyResponseSchema = z
   .object({
-    data: z.array(classificationRecordSchema),
+    status: z.literal("success"),
+    data: z.array(classificationEnvelopeSchema),
     pagination: z.object({
       page: z.number().int(),
       limit: z.number().int(),

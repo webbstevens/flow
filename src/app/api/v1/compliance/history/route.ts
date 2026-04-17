@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
 import { generateRequestId, logRequest } from "@/lib/request-logger";
+import { buildClassificationEnvelope } from "@/lib/compliance";
 
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
@@ -40,25 +41,28 @@ export async function GET(request: NextRequest) {
       prisma.classificationRecord.count({ where: { workspaceId } }),
     ]);
 
-    const data = rows.map((r) => ({
-      id: r.id,
-      product_url: r.productUrl,
-      source_title: r.sourceTitle,
-      image_url: publicUrlForPath(r.imageStoragePath),
-      hs_code: r.hsCode,
-      mid_code: r.midCode,
-      confidence_score: r.confidenceScore,
-      requires_review: r.requiresReview,
-      country_of_origin: r.countryOfOrigin,
-      materials: r.materials,
-      restricted_goods_flag: r.restrictedGoodsFlag,
-      product_description_for_customs: r.customsDescription,
-      ai_attributes: r.aiAttributes,
-      created_at: r.createdAt.toISOString(),
-    }));
+    const data = rows.map((r) =>
+      buildClassificationEnvelope({
+        id: r.id,
+        hsCode: r.hsCode,
+        midCode: r.midCode,
+        countryOfOrigin: r.countryOfOrigin,
+        materials: r.materials,
+        customsDescription: r.customsDescription,
+        confidenceScore: r.confidenceScore,
+        requiresReview: r.requiresReview,
+        restrictedGoodsFlag: r.restrictedGoodsFlag,
+        aiAttributes: (r.aiAttributes as Record<string, unknown> | null) ?? null,
+        productUrl: r.productUrl,
+        sourceTitle: r.sourceTitle,
+        createdAt: r.createdAt,
+        imageUrl: publicUrlForPath(r.imageStoragePath),
+      }),
+    );
 
     statusCode = 200;
     const res = Response.json({
+      status: "success",
       data,
       pagination: { page, limit, total },
     });

@@ -18,6 +18,7 @@ import {
 } from "@/lib/scraper";
 import { uploadClassifyImage } from "@/lib/image-storage";
 import { prisma } from "@/lib/prisma";
+import { buildClassificationEnvelope } from "@/lib/compliance";
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
@@ -99,7 +100,6 @@ export async function POST(request: NextRequest) {
         customsDescription: result.product_description_for_customs || null,
         aiAttributes: result.ai_attributes,
       },
-      select: { id: true },
     });
 
     statusCode = 200;
@@ -113,14 +113,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const res = Response.json({
-      success: true,
-      data: {
-        ...result,
-        record_id: record.id,
-        image_url: imageStoragePath?.publicUrl ?? null,
-      },
+    const envelope = buildClassificationEnvelope({
+      id: record.id,
+      hsCode: record.hsCode,
+      midCode: record.midCode,
+      countryOfOrigin: record.countryOfOrigin,
+      materials: record.materials,
+      customsDescription: record.customsDescription,
+      confidenceScore: record.confidenceScore,
+      requiresReview: record.requiresReview,
+      restrictedGoodsFlag: record.restrictedGoodsFlag,
+      aiAttributes: (record.aiAttributes as Record<string, unknown> | null) ?? null,
+      productUrl: record.productUrl,
+      sourceTitle: record.sourceTitle,
+      createdAt: record.createdAt,
+      imageUrl: imageStoragePath?.publicUrl ?? null,
     });
+
+    const res = Response.json({ status: "success", data: envelope });
     res.headers.set("X-Request-Id", requestId);
     return res;
   } catch (err) {
