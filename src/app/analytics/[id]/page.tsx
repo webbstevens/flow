@@ -11,6 +11,11 @@ import {
   ComplianceRow,
 } from "../_components/ComplianceCard";
 import { RequirementsCard } from "../_components/RequirementsCard";
+import {
+  EditableField,
+  EditableToggle,
+} from "../_components/EditableField";
+import { saveRecordText, saveRecordBool } from "./actions";
 
 type Tab = "overview" | "attributes" | "raw";
 
@@ -169,28 +174,45 @@ export default async function AnalyticsDetailPage({
           {/* Tab content */}
           {tab === "overview" && (
             <section className="space-y-6">
-              {record.customsDescription && (
-                <div className="bg-surface-lowest rounded-2xl p-6">
-                  <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50 mb-3">
-                    Customs description
-                  </p>
-                  <p className="font-serif italic text-lg text-primary leading-snug">
-                    &ldquo;{record.customsDescription}&rdquo;
-                  </p>
-                </div>
-              )}
+              <div className="bg-surface-lowest rounded-2xl p-6">
+                <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50 mb-3">
+                  Customs description
+                </p>
+                <EditableField
+                  initial={record.customsDescription}
+                  save={saveRecordText.bind(
+                    null,
+                    record.id,
+                    "customsDescription",
+                  )}
+                  multiline
+                  maxLength={1000}
+                  placeholder="Add a customs description…"
+                  ariaLabel="Customs description"
+                />
+              </div>
 
               <div className="bg-surface-lowest rounded-2xl p-6">
                 <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50 mb-4">
                   Product information
                 </p>
                 <dl className="space-y-3">
-                  {record.sourceTitle && (
-                    <ComplianceRow
-                      label="Title"
-                      value={record.sourceTitle}
-                    />
-                  )}
+                  <ComplianceRow
+                    label="Title"
+                    value={
+                      <EditableField
+                        initial={record.sourceTitle}
+                        save={saveRecordText.bind(
+                          null,
+                          record.id,
+                          "sourceTitle",
+                        )}
+                        maxLength={500}
+                        placeholder="Add a title…"
+                        ariaLabel="Title"
+                      />
+                    }
+                  />
                   {record.productUrl && (
                     <ComplianceRow
                       label="Source URL"
@@ -206,9 +228,22 @@ export default async function AnalyticsDetailPage({
                       }
                     />
                   )}
-                  {record.materials && (
-                    <ComplianceRow label="Materials" value={record.materials} />
-                  )}
+                  <ComplianceRow
+                    label="Materials"
+                    value={
+                      <EditableField
+                        initial={record.materials}
+                        save={saveRecordText.bind(
+                          null,
+                          record.id,
+                          "materials",
+                        )}
+                        maxLength={500}
+                        placeholder="Add materials…"
+                        ariaLabel="Materials"
+                      />
+                    }
+                  />
                   {record.countryOfOrigin && (
                     <ComplianceRow
                       label="Country of origin"
@@ -297,7 +332,17 @@ export default async function AnalyticsDetailPage({
             />
             <ComplianceRow
               label="Restricted goods"
-              value={record.restrictedGoodsFlag ? "Yes" : "No"}
+              value={
+                <EditableToggle
+                  initial={record.restrictedGoodsFlag}
+                  save={saveRecordBool.bind(
+                    null,
+                    record.id,
+                    "restrictedGoodsFlag",
+                  )}
+                  ariaLabel="Restricted goods"
+                />
+              }
             />
           </ComplianceCard>
 
@@ -306,12 +351,18 @@ export default async function AnalyticsDetailPage({
               label="HS code"
               value={<span className="font-mono">{record.hsCode}</span>}
             />
-            {record.midCode && (
-              <ComplianceRow
-                label="MID code"
-                value={<span className="font-mono">{record.midCode}</span>}
-              />
-            )}
+            <ComplianceRow
+              label="MID code"
+              value={
+                <EditableField
+                  initial={record.midCode}
+                  save={saveRecordText.bind(null, record.id, "midCode")}
+                  maxLength={50}
+                  placeholder="Add MID…"
+                  ariaLabel="MID code"
+                />
+              }
+            />
             <ComplianceRow
               label="Country of origin"
               value={record.countryOfOrigin ?? "—"}
