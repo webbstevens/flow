@@ -160,6 +160,45 @@ const complianceWarningSchema = z
   })
   .meta({ id: "ComplianceWarning" });
 
+const requiredDocumentSchema = z
+  .object({
+    certificate_code: z.string().meta({ example: "Y901" }),
+    name: z.string().meta({ example: "Not subject to dual-use controls" }),
+    agency: z.string().meta({ example: "DG_TRADE" }),
+    agency_name: z.string().meta({ example: "EU DG Trade" }),
+    jurisdiction: z.enum(["US", "EU", "UK", "INTL"]),
+    type: z.enum(["C", "L", "U", "X", "N", "Y", "PGA"]),
+    severity: z.enum(["required", "alternative", "informational"]),
+    note: z.string().optional(),
+  })
+  .meta({ id: "RequiredDocument" });
+
+const requirementWarningSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+  })
+  .meta({ id: "RequirementWarning" });
+
+const requirementEnvelopeSchema = z
+  .object({
+    status: z
+      .enum(["flow_validating", "verified", "manual_override"])
+      .meta({
+        description:
+          "`flow_validating` = AI-inferred, pending verification against an authoritative source. `verified` = reconciled against UK Trade Tariff / TARIC / ACE. `manual_override` = operator-edited.",
+      }),
+    source: z.enum(["llm", "uk_trade_tariff", "taric", "ace", "manual"]),
+    confidence: z.number().int().min(0).max(100).nullable(),
+    destination_country: z.string(),
+    origin_country: z.string(),
+    required_documents: z.array(requiredDocumentSchema),
+    warnings: z.array(requirementWarningSchema),
+    updated_at: z.string().datetime(),
+    verified_at: z.string().datetime().nullable(),
+  })
+  .meta({ id: "RequirementEnvelope" });
+
 export const classificationEnvelopeSchema = z
   .object({
     classification_id: z.string().uuid(),
@@ -222,6 +261,10 @@ export const classificationEnvelopeSchema = z
           "Public URL to the evaluated image in Supabase Storage, or null if persistence was disabled.",
       }),
     created_at: z.string().datetime(),
+    documentation: requirementEnvelopeSchema.nullable().meta({
+      description:
+        "Required customs documents / Y-codes / PGA flags for this (HS6, origin, destination) triple. `null` if no destination was supplied or the destination is outside the v1 scope (US/UK/EU).",
+    }),
   })
   .meta({ id: "ClassificationEnvelope" });
 

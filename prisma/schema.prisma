@@ -137,6 +137,7 @@ model ClassificationRecord {
   confidenceScore     Int      @map("confidence_score")
   requiresReview      Boolean  @default(false) @map("requires_review")
   countryOfOrigin     String?  @map("country_of_origin")
+  destinationCountry  String?  @map("destination_country")
   materials           String?
   restrictedGoodsFlag Boolean  @default(false) @map("restricted_goods_flag")
   customsDescription  String?  @map("customs_description")
@@ -145,4 +146,25 @@ model ClassificationRecord {
 
   @@index([workspaceId, createdAt])
   @@map("classification_records")
+}
+
+/// Shared cache of required documentation / Y-codes per (HS6, origin, destination).
+/// See scripts/add-classification-requirements.sql and src/lib/requirements.ts.
+model ClassificationRequirement {
+  id                  String    @id @default(uuid()) @db.Uuid
+  hsCodePrefix        String    @map("hs_code_prefix") // 6-digit HS (WCO subheading)
+  originCountry       String    @map("origin_country") // ISO2 or "ANY"
+  destinationCountry  String    @map("destination_country") // ISO2 or "EU"
+  requiredDocuments   Json      @default("[]") @map("required_documents")
+  warnings            Json      @default("[]")
+  status              String // 'flow_validating' | 'verified' | 'manual_override'
+  source              String // 'llm' | 'uk_trade_tariff' | 'taric' | 'ace' | 'manual'
+  confidence          Int?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  verifiedAt          DateTime? @map("verified_at")
+
+  @@unique([hsCodePrefix, originCountry, destinationCountry])
+  @@index([destinationCountry])
+  @@map("classification_requirements")
 }

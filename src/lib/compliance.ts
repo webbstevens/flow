@@ -14,6 +14,8 @@
  *     are missing plus any warnings the UI should display.
  */
 
+import type { RequirementEnvelope } from "./requirements";
+
 export type ComplianceStatus = "compliant" | "partially_compliant";
 
 export type WarningCode = "LOW_CONFIDENCE" | "RESTRICTED_GOODS";
@@ -105,6 +107,12 @@ export interface ClassificationEnvelope {
   };
   image_url: string | null;
   created_at: string;
+  /**
+   * Cross-border documentation requirements for this (HS, origin, destination).
+   * `null` when no destination was supplied or the destination is outside
+   * the v1 scope (US/UK/EU).
+   */
+  documentation: RequirementEnvelope | null;
 }
 
 export interface RawClassificationRecord {
@@ -126,6 +134,7 @@ export interface RawClassificationRecord {
 
 export function buildClassificationEnvelope(
   record: RawClassificationRecord,
+  documentation: RequirementEnvelope | null = null,
 ): ClassificationEnvelope {
   const evaluation = deriveCompliance({
     hsCode: record.hsCode,
@@ -161,6 +170,7 @@ export function buildClassificationEnvelope(
     },
     image_url: record.imageUrl,
     created_at: record.createdAt.toISOString(),
+    documentation,
   };
 }
 
