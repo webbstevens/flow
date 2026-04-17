@@ -26,5 +26,5 @@ CREATE INDEX IF NOT EXISTS classification_requirements_dest_idx
   ON classification_requirements(destination_country);
 
 -- Run with:
---   npx prisma db execute --file scripts/add-classification-requirements.sql \
---     --schema prisma/schema.prisma
+--   npx prisma db execute --file scripts/add-classification-requirements.sql
+-- (Prisma 7 auto-loads prisma.config.ts; no --schema flag.)

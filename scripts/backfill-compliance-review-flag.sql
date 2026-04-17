@@ -4,7 +4,8 @@
 -- Idempotent. Safe to re-run.
 --
 -- Run with:
---   npx prisma db execute --file scripts/backfill-compliance-review-flag.sql --schema prisma/schema.prisma
+--   npx prisma db execute --file scripts/backfill-compliance-review-flag.sql
+-- (Prisma 7 auto-loads prisma.config.ts; no --schema flag.)
 
 UPDATE classification_records
 SET requires_review = true
