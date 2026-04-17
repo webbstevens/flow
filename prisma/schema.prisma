@@ -148,8 +148,12 @@ model ClassificationRecord {
   @@map("classification_records")
 }
 
-/// Shared cache of required documentation / Y-codes per (HS6, origin, destination).
-/// See scripts/add-classification-requirements.sql and src/lib/requirements.ts.
+/// DEPRECATED (Option C / issue #15). Shared cache of required documentation
+/// per (HS6, origin, destination). Superseded by ClassificationCatalogAnnotation
+/// which stores per-catalog-row judgments instead of a freehand document list.
+/// The v2 envelope (src/lib/requirements-v2.ts) derives `required_documents`
+/// from annotations at read time. This table is retained read-only for
+/// rollback safety; it will be dropped in PR 5 after v2 is stable.
 model ClassificationRequirement {
   id                  String    @id @default(uuid()) @db.Uuid
   hsCodePrefix        String    @map("hs_code_prefix") // 6-digit HS (WCO subheading)

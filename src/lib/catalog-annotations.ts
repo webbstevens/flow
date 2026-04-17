@@ -56,8 +56,13 @@ export interface AnnotationInput {
   materials?: string | null;
 }
 
+/**
+ * v2 is the default path as of PR 4. Opt out by setting REQUIREMENTS_V2=false.
+ * The legacy path (findCachedRequirement + computeDeepReview) will be removed
+ * in PR 5 once v2 is stable in prod.
+ */
 export function isRequirementsV2Enabled(): boolean {
-  return process.env.REQUIREMENTS_V2 === "true";
+  return process.env.REQUIREMENTS_V2 !== "false";
 }
 
 function normalizeOrigin(origin: string | null | undefined): string {

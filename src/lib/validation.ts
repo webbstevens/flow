@@ -192,7 +192,12 @@ const requirementEnvelopeSchema = z
     confidence: z.number().int().min(0).max(100).nullable(),
     destination_country: z.string(),
     origin_country: z.string(),
-    required_documents: z.array(requiredDocumentSchema),
+    required_documents: z
+      .array(requiredDocumentSchema)
+      .meta({
+        description:
+          "DEPRECATED — derived from `catalog_entries` where `applies=true`. Retained for backwards compatibility with pre-v2 consumers; will be removed after a deprecation window. New integrations should read `catalog_entries` directly.",
+      }),
     warnings: z.array(requirementWarningSchema),
     updated_at: z.string().datetime(),
     verified_at: z.string().datetime().nullable(),
