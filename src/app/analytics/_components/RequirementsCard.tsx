@@ -71,6 +71,8 @@ export function RequirementsCard({
         </div>
       )}
 
+      {deepReview && <DeepReviewDrawer review={deepReview} />}
+
       {documentation.warnings.length > 0 && (
         <div className="mt-4 pt-4 border-t border-surface-container">
           {documentation.warnings.map((w) => (
@@ -84,8 +86,6 @@ export function RequirementsCard({
           ))}
         </div>
       )}
-
-      {deepReview && <DeepReviewDrawer review={deepReview} />}
     </section>
   );
 }
@@ -238,70 +238,158 @@ function DocReviewBar({
 }
 
 function DeepReviewDrawer({ review }: { review: DeepReviewResult }) {
-  const triggered = review.entries.filter((e) => e.triggered);
-  const notTriggered = review.entries.filter((e) => !e.triggered);
+  const agencies = groupByAgency(review.entries);
 
   return (
     <details className="mt-4 pt-4 border-t border-surface-container group">
       <summary className="cursor-pointer list-none flex items-center justify-between font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50 hover:text-primary transition">
-        <span>Full regulatory review</span>
+        <span>Full regulatory review · {agencies.length} agencies</span>
         <span className="material-symbols-outlined text-sm group-open:rotate-180 transition">
           expand_more
         </span>
       </summary>
-      <div className="mt-3 space-y-4">
-        {triggered.length > 0 && (
-          <CatalogGroup
-            label={`In scope · HS chapter ${review.hsChapter}`}
-            entries={triggered}
-          />
-        )}
-        {notTriggered.length > 0 && (
-          <CatalogGroup
-            label={`Reviewed & cleared — not applicable to HS chapter ${review.hsChapter}`}
-            entries={notTriggered}
-            muted
-          />
-        )}
-      </div>
+      <p className="font-sans text-[0.625rem] text-primary/40 mt-2 mb-3 leading-snug">
+        Grouped by agency — action-needed first. HS chapter {review.hsChapter}.
+      </p>
+      <ul className="space-y-1">
+        {agencies.map((a) => (
+          <AgencyExpander key={a.code} agency={a} />
+        ))}
+      </ul>
     </details>
   );
 }
 
-function CatalogGroup({
-  label,
-  entries,
-  muted = false,
-}: {
-  label: string;
+interface AgencyGroup {
+  code: string;
+  name: string;
   entries: DeepReviewEntry[];
-  muted?: boolean;
-}) {
+  worst: DeepReviewEntry["status"];
+  counts: Record<DeepReviewEntry["status"], number>;
+}
+
+function groupByAgency(entries: DeepReviewEntry[]): AgencyGroup[] {
+  const rank: Record<DeepReviewEntry["status"], number> = {
+    required: 0,
+    manual_review: 1,
+    tbd: 2,
+    ready: 3,
+  };
+
+  const byCode = new Map<string, DeepReviewEntry[]>();
+  for (const e of entries) {
+    const existing = byCode.get(e.agencyCode);
+    if (existing) existing.push(e);
+    else byCode.set(e.agencyCode, [e]);
+  }
+
+  const groups: AgencyGroup[] = [];
+  for (const [code, rows] of byCode) {
+    const counts: Record<DeepReviewEntry["status"], number> = {
+      tbd: 0,
+      required: 0,
+      manual_review: 0,
+      ready: 0,
+    };
+    let worst: DeepReviewEntry["status"] = "ready";
+    for (const r of rows) {
+      counts[r.status]++;
+      if (rank[r.status] < rank[worst]) worst = r.status;
+    }
+    groups.push({ code, name: rows[0].agencyName, entries: rows, worst, counts });
+  }
+
+  return groups.sort(
+    (a, b) =>
+      rank[a.worst] - rank[b.worst] ||
+      b.entries.length - a.entries.length ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+function AgencyExpander({ agency }: { agency: AgencyGroup }) {
+  const actionCount =
+    agency.counts.required + agency.counts.manual_review + agency.counts.tbd;
+
   return (
-    <div>
-      <p className="font-sans text-[0.625rem] font-bold uppercase tracking-wider text-primary/40 mb-2">
-        {label} · {entries.length}
-      </p>
-      <ul className="space-y-1.5">
-        {entries.map((e) => (
-          <li
-            key={e.catalogCode}
-            className={`flex items-start gap-2 rounded-lg px-2 py-1.5 ${muted ? "bg-transparent" : "bg-surface-container"}`}
-          >
-            <StatusDot status={e.status} />
-            <div className="min-w-0 flex-1">
-              <p
-                className={`font-sans text-xs leading-snug ${muted ? "text-primary/50" : "text-primary"}`}
-              >
-                {e.title}
-              </p>
-              <p className="font-mono text-[0.625rem] text-primary/50 mt-0.5">
-                {e.agencyCode} · {e.catalogCode}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+    <li>
+      <details className="group/agency rounded-lg bg-surface-container">
+        <summary className="cursor-pointer list-none flex items-center gap-2 px-2 py-2">
+          <StatusDot status={agency.worst} />
+          <div className="min-w-0 flex-1">
+            <p className="font-sans text-xs text-primary leading-snug truncate">
+              {agency.name}
+            </p>
+            <p className="font-mono text-[0.625rem] text-primary/50 mt-0.5">
+              {agency.code} · {agency.entries.length} rule
+              {agency.entries.length !== 1 ? "s" : ""}
+              {actionCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-primary/70">
+                    {actionCount} needs attention
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <MiniCounts counts={agency.counts} />
+          <span className="material-symbols-outlined text-sm text-primary/40 group-open/agency:rotate-180 transition">
+            expand_more
+          </span>
+        </summary>
+        <ul className="px-2 pb-2 pt-1 space-y-1 border-t border-surface-lowest">
+          {agency.entries.map((e) => (
+            <li
+              key={e.catalogCode}
+              className="flex items-start gap-2 px-1.5 py-1"
+            >
+              <StatusDot status={e.status} />
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`font-sans text-xs leading-snug ${e.triggered ? "text-primary" : "text-primary/50"}`}
+                >
+                  {e.title}
+                </p>
+                <p className="font-mono text-[0.625rem] text-primary/50 mt-0.5">
+                  {e.catalogCode}
+                </p>
+                <p className="font-sans text-[0.625rem] text-primary/50 mt-0.5 italic leading-snug">
+                  {e.reason}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
+function MiniCounts({
+  counts,
+}: {
+  counts: Record<DeepReviewEntry["status"], number>;
+}) {
+  const items: Array<{ n: number; color: string; label: string }> = [
+    { n: counts.required, color: "bg-red-500", label: "required" },
+    { n: counts.manual_review, color: "bg-amber-500", label: "manual review" },
+    { n: counts.tbd, color: "bg-primary/30", label: "tbd" },
+    { n: counts.ready, color: "bg-green-500", label: "ready" },
+  ].filter((x) => x.n > 0);
+
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0">
+      {items.map((item) => (
+        <span
+          key={item.label}
+          title={`${item.n} ${item.label}`}
+          className="inline-flex items-center gap-1 font-sans text-[0.625rem] text-primary/60"
+        >
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${item.color}`} />
+          {item.n}
+        </span>
+      ))}
     </div>
   );
 }
