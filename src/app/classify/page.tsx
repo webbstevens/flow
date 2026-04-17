@@ -3,34 +3,36 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-interface Classification {
-  hs_code: string;
-  mid_code: string;
-  confidence_score: number;
-  requires_review: boolean;
-  country_of_origin: string;
-  materials: string;
-  restricted_goods_flag: boolean;
-  product_description_for_customs: string;
-  ai_attributes: Record<string, string>;
-  record_id: string;
-  image_url: string | null;
+interface Warning {
+  code: "LOW_CONFIDENCE" | "RESTRICTED_GOODS";
+  message: string;
 }
 
-interface HistoryItem {
-  id: string;
-  product_url: string | null;
-  source_title: string | null;
+interface ClassificationEnvelope {
+  classification_id: string;
+  compliance_status: "compliant" | "partially_compliant";
+  classification: {
+    hs_code: string;
+    coo: string | null;
+    mid_code: string | null;
+    customs_description: string | null;
+    materials: string | null;
+  };
+  ai_metadata: {
+    confidence_score: number;
+    requires_review: boolean;
+    attributes: Record<string, unknown>;
+  };
+  actionable_flags: {
+    missing_required_fields: string[];
+    warnings: Warning[];
+    restricted_goods_flag: boolean;
+  };
+  source: {
+    product_url: string | null;
+    title: string | null;
+  };
   image_url: string | null;
-  hs_code: string;
-  mid_code: string | null;
-  confidence_score: number;
-  requires_review: boolean;
-  country_of_origin: string | null;
-  materials: string | null;
-  restricted_goods_flag: boolean;
-  product_description_for_customs: string | null;
-  ai_attributes: Record<string, string> | null;
   created_at: string;
 }
 
@@ -42,9 +44,9 @@ export default function ClassifyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<Classification | null>(null);
+  const [result, setResult] = useState<ClassificationEnvelope | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [history, setHistory] = useState<ClassificationEnvelope[]>([]);
 
   useEffect(() => {
     refreshHistory();
@@ -114,21 +116,8 @@ export default function ClassifyPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function openHistoryItem(item: HistoryItem) {
-    setResult({
-      hs_code: item.hs_code,
-      mid_code: item.mid_code ?? "",
-      confidence_score: item.confidence_score,
-      requires_review: item.requires_review,
-      country_of_origin: item.country_of_origin ?? "",
-      materials: item.materials ?? "",
-      restricted_goods_flag: item.restricted_goods_flag,
-      product_description_for_customs:
-        item.product_description_for_customs ?? "",
-      ai_attributes: item.ai_attributes ?? {},
-      record_id: item.id,
-      image_url: item.image_url,
-    });
+  function openHistoryItem(item: ClassificationEnvelope) {
+    setResult(item);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -284,7 +273,7 @@ export default function ClassifyPage() {
           <div className="grid grid-cols-2 gap-3">
             {history.map((item) => (
               <button
-                key={item.id}
+                key={item.classification_id}
                 onClick={() => openHistoryItem(item)}
                 className="text-left bg-surface-lowest rounded-2xl overflow-hidden hover:ring-2 hover:ring-accent transition"
               >
@@ -292,7 +281,7 @@ export default function ClassifyPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={item.image_url}
-                    alt={item.source_title ?? "Evaluated product"}
+                    alt={item.source.title ?? "Evaluated product"}
                     className="w-full aspect-square object-cover"
                   />
                 ) : (
@@ -304,13 +293,13 @@ export default function ClassifyPage() {
                 )}
                 <div className="p-3">
                   <p className="font-serif text-base text-primary truncate">
-                    {item.hs_code}
+                    {item.classification.hs_code}
                   </p>
                   <p className="font-sans text-xs text-primary/60 truncate mt-1">
-                    {item.source_title ?? item.product_url ?? "Photo upload"}
+                    {item.source.title ?? item.source.product_url ?? "Photo upload"}
                   </p>
                   <Link
-                    href={`/analytics/${item.id}`}
+                    href={`/analytics/${item.classification_id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="inline-block mt-2 font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-accent hover:underline"
                   >
@@ -330,12 +319,35 @@ function ResultCard({
   result,
   onReset,
 }: {
-  result: Classification;
+  result: ClassificationEnvelope;
   onReset: () => void;
 }) {
-  const extraAttrs = Object.entries(result.ai_attributes ?? {});
+  const { classification, ai_metadata, actionable_flags } = result;
+  const extraAttrs = Object.entries(ai_metadata.attributes ?? {});
+  const partial = result.compliance_status === "partially_compliant";
   return (
     <section className="bg-surface-lowest rounded-3xl p-8 space-y-6">
+      {partial && (
+        <div className="bg-amber-100 text-amber-900 rounded-2xl px-4 py-3 space-y-1">
+          <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest">
+            Partially compliant
+          </p>
+          {actionable_flags.missing_required_fields.length > 0 && (
+            <p className="font-sans text-sm">
+              Missing required field(s):{" "}
+              <span className="font-mono">
+                {actionable_flags.missing_required_fields.join(", ")}
+              </span>
+            </p>
+          )}
+          {actionable_flags.warnings.map((w) => (
+            <p key={w.code} className="font-sans text-sm">
+              {w.message}
+            </p>
+          ))}
+        </div>
+      )}
+
       {result.image_url && (
         <div>
           <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/60 mb-3">
@@ -355,11 +367,11 @@ function ResultCard({
           HTSUS Code
         </p>
         <p className="font-serif text-[3rem] leading-none mt-3 text-primary tracking-tight">
-          {result.hs_code}
+          {classification.hs_code}
         </p>
-        {result.mid_code && (
+        {classification.mid_code && (
           <p className="font-sans text-xs text-primary/60 mt-2">
-            MID: {result.mid_code}
+            MID: {classification.mid_code}
           </p>
         )}
       </div>
@@ -367,19 +379,19 @@ function ResultCard({
       <div className="flex items-center gap-3 flex-wrap">
         <span
           className={`font-sans text-[0.6875rem] font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
-            result.confidence_score >= 70
+            ai_metadata.confidence_score >= 80
               ? "bg-secondary text-on-secondary"
               : "bg-amber-100 text-amber-900"
           }`}
         >
-          {result.confidence_score}% confidence
+          {ai_metadata.confidence_score}% confidence
         </span>
-        {result.requires_review && (
+        {ai_metadata.requires_review && (
           <span className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-amber-100 text-amber-900">
             Needs review
           </span>
         )}
-        {result.restricted_goods_flag && (
+        {actionable_flags.restricted_goods_flag && (
           <span className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-red-100 text-red-900">
             Restricted goods
           </span>
@@ -390,11 +402,11 @@ function ResultCard({
         <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-primary/60">
           Compliance Details
         </p>
-        <ComplianceRow label="Country of Origin" value={result.country_of_origin} />
-        <ComplianceRow label="Materials" value={result.materials} />
+        <ComplianceRow label="Country of Origin" value={classification.coo} />
+        <ComplianceRow label="Materials" value={classification.materials} />
         <ComplianceRow
           label="Customs Description"
-          value={result.product_description_for_customs}
+          value={classification.customs_description}
         />
       </div>
 

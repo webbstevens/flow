@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
+import { deriveCompliance } from "@/lib/compliance";
 import { ComplianceBadge } from "../_components/ComplianceBadge";
 import {
   ComplianceCard,
@@ -42,6 +43,14 @@ export default async function AnalyticsDetailPage({
     record.aiAttributes && typeof record.aiAttributes === "object"
       ? (record.aiAttributes as Record<string, unknown>)
       : {};
+  const evaluation = deriveCompliance({
+    hsCode: record.hsCode,
+    countryOfOrigin: record.countryOfOrigin,
+    confidenceScore: record.confidenceScore,
+    requiresReview: record.requiresReview,
+    restrictedGoodsFlag: record.restrictedGoodsFlag,
+  });
+  const isPartial = evaluation.status === "partially_compliant";
 
   const overallStatus: {
     label: string;
@@ -63,6 +72,31 @@ export default async function AnalyticsDetailPage({
         <span className="material-symbols-outlined text-sm">arrow_back</span>
         Back to analytics
       </Link>
+
+      {isPartial && (
+        <div className="bg-amber-100 text-amber-900 rounded-2xl px-5 py-4 mb-6">
+          <p className="font-sans text-[0.6875rem] font-bold uppercase tracking-widest mb-2">
+            Partially compliant — action required
+          </p>
+          {evaluation.missing_required_fields.length > 0 && (
+            <p className="font-sans text-sm">
+              Missing required field
+              {evaluation.missing_required_fields.length > 1 ? "s" : ""}:{" "}
+              <span className="font-mono">
+                {evaluation.missing_required_fields.join(", ")}
+              </span>
+              . Fill in via{" "}
+              <span className="font-mono">PATCH /products/:id</span> before
+              generating customs documents.
+            </p>
+          )}
+          {evaluation.warnings.map((w) => (
+            <p key={w.code} className="font-sans text-sm mt-1">
+              {w.message}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         {/* Main column */}
