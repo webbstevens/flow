@@ -94,7 +94,7 @@ const AgencySchema = z.object({
 });
 
 const CatalogSchema = z.object({
-  agencies: z.array(AgencySchema).min(45).max(50),
+  agencies: z.array(AgencySchema).min(45).max(80),
 });
 
 type InferredCatalog = z.infer<typeof CatalogSchema>;
