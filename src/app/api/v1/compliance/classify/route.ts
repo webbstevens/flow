@@ -21,6 +21,13 @@ import { prisma } from "@/lib/prisma";
 import { buildClassificationEnvelope } from "@/lib/compliance";
 import { getOrInferRequirement } from "@/lib/requirements";
 
+/**
+ * If a request doesn't specify a destination country, default to US.
+ * Most demo traffic is US-bound and we'd rather surface a populated
+ * requirements card than hide it behind an optional field.
+ */
+const DEFAULT_DESTINATION_COUNTRY = "US";
+
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
   const start = Date.now();
@@ -39,6 +46,8 @@ export async function POST(request: NextRequest) {
     }
 
     const workspaceId = await getWorkspaceId();
+    const destinationCountry =
+      parsed.data.destinationCountry ?? DEFAULT_DESTINATION_COUNTRY;
 
     // 1. If a product URL was provided, scrape it server-side.
     let scraped: ScrapedProduct | null = null;
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
       brand: parsed.data.brand ?? scraped?.brand,
       category: parsed.data.category,
       originCountry: parsed.data.originCountry,
-      destinationCountry: parsed.data.destinationCountry,
+      destinationCountry,
       images: [
         ...(parsed.data.images ?? []),
         ...(scraped?.imageUrl ? [scraped.imageUrl] : []),
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest) {
         confidenceScore: result.confidence_score,
         requiresReview: result.requires_review,
         countryOfOrigin: result.country_of_origin || null,
-        destinationCountry: parsed.data.destinationCountry ?? null,
+        destinationCountry,
         materials: result.materials || null,
         restrictedGoodsFlag: result.restricted_goods_flag,
         customsDescription: result.product_description_for_customs || null,
@@ -106,19 +115,17 @@ export async function POST(request: NextRequest) {
 
     // 5b. Infer / fetch documentation requirements for this corridor.
     //     Best-effort — don't block the classify response on failure.
-    const documentation = parsed.data.destinationCountry
-      ? await getOrInferRequirement({
-          hsCode: record.hsCode,
-          originCountry: record.countryOfOrigin,
-          destinationCountry: parsed.data.destinationCountry,
-          productTitle: record.sourceTitle,
-          productDescription: result.product_description_for_customs,
-          materials: record.materials,
-        }).catch((err) => {
-          console.error("[classify] requirement inference failed", err);
-          return null;
-        })
-      : null;
+    const documentation = await getOrInferRequirement({
+      hsCode: record.hsCode,
+      originCountry: record.countryOfOrigin,
+      destinationCountry,
+      productTitle: record.sourceTitle,
+      productDescription: result.product_description_for_customs,
+      materials: record.materials,
+    }).catch((err) => {
+      console.error("[classify] requirement inference failed", err);
+      return null;
+    });
 
     statusCode = 200;
 
