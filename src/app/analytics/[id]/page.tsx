@@ -5,12 +5,18 @@ import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
 import { deriveCompliance } from "@/lib/compliance";
 import { findCachedRequirement } from "@/lib/requirements";
+import { findCachedRationale, hashAttributes } from "@/lib/rationale";
+import { findCachedPrecedents, hashQuery } from "@/lib/precedents";
 import { ComplianceBadge } from "../_components/ComplianceBadge";
 import {
   ComplianceCard,
   ComplianceRow,
 } from "../_components/ComplianceCard";
 import { RequirementsCard } from "../_components/RequirementsCard";
+import {
+  RationaleAccordion,
+  PrecedentsAccordion,
+} from "../_components/AuditAccordion";
 import {
   EditableField,
   EditableToggle,
@@ -66,6 +72,20 @@ export default async function AnalyticsDetailPage({
         record.destinationCountry,
       )
     : null;
+
+  // Pre-warm the audit accordions from cache — avoids a client-side fetch
+  // when we already generated the rationale/precedents earlier. Cache miss
+  // just means the accordion body fetches on expand (lazy path).
+  const rationaleCached = await findCachedRationale(
+    record.hsCode,
+    hashAttributes(record.sourceTitle, record.materials, null),
+    record.id,
+  );
+  const precedentsCached = await findCachedPrecedents(
+    record.hsCode,
+    hashQuery(record.hsCode, record.sourceTitle, record.materials),
+    record.id,
+  );
 
   const overallStatus: {
     label: string;
@@ -252,6 +272,15 @@ export default async function AnalyticsDetailPage({
                   )}
                 </dl>
               </div>
+
+              <RationaleAccordion
+                recordId={record.id}
+                initial={rationaleCached}
+              />
+              <PrecedentsAccordion
+                recordId={record.id}
+                initial={precedentsCached}
+              />
             </section>
           )}
 

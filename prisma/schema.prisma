@@ -168,3 +168,43 @@ model ClassificationRequirement {
   @@index([destinationCountry])
   @@map("classification_requirements")
 }
+
+/// Cached GRI-step analysis + section/chapter note review per (HS10, attribute hash).
+/// Keyed on full HS10 because rationale is line-specific; attributes hash lets two
+/// records classifying the same product share one row. See src/lib/rationale.ts.
+model ClassificationRationale {
+  id             String    @id @default(uuid()) @db.Uuid
+  hsCode         String    @map("hs_code") // full 10-digit HTS line
+  attributesHash String    @map("attributes_hash") // sha256 of normalized (title|materials|category)
+  griSteps       Json      @default("[]") @map("gri_steps")
+  notesReviewed  Json      @default("[]") @map("notes_reviewed")
+  status         String // 'flow_validating' | 'verified' | 'manual_override'
+  source         String // 'llm' | 'wco_explanatory_notes' | 'manual'
+  confidence     Int?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  verifiedAt     DateTime? @map("verified_at")
+
+  @@unique([hsCode, attributesHash])
+  @@index([hsCode])
+  @@map("classification_rationales")
+}
+
+/// CROSS ruling precedent matches per (HS6, query hash). v1 is a stub — the route
+/// ships returning an empty rulings array behind a "closed beta" notice so clients
+/// can integrate against the stable shape. Real fetcher slots into src/lib/precedents.ts.
+model CrossRulingMatch {
+  id           String    @id @default(uuid()) @db.Uuid
+  hsCodePrefix String    @map("hs_code_prefix") // HS6 — broader match
+  queryHash    String    @map("query_hash") // sha256 of normalized (hs10|title|materials)
+  rulings      Json      @default("[]") // [{ ruling_number, date, hs_code, product, url, relevance }]
+  source       String // 'cross_stub' | 'cross_scrape' | 'cross_api'
+  status       String // 'flow_validating' | 'verified' | 'manual_override'
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  expiresAt    DateTime? @map("expires_at")
+
+  @@unique([hsCodePrefix, queryHash])
+  @@index([hsCodePrefix])
+  @@map("cross_ruling_matches")
+}
