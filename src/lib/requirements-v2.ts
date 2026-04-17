@@ -74,6 +74,61 @@ export interface CatalogEntry {
   note: string | null;
 }
 
+export interface AgencyGroup {
+  code: string;
+  name: string;
+  entries: CatalogEntry[];
+  worst: EntryStatus;
+  counts: Record<EntryStatus, number>;
+  actionCount: number;
+}
+
+export const STATUS_RANK: Record<EntryStatus, number> = {
+  required: 0,
+  manual_review: 1,
+  tbd: 2,
+  ready: 3,
+};
+
+export function groupEntriesByAgency(entries: CatalogEntry[]): AgencyGroup[] {
+  const byCode = new Map<string, CatalogEntry[]>();
+  for (const e of entries) {
+    const existing = byCode.get(e.agency_code);
+    if (existing) existing.push(e);
+    else byCode.set(e.agency_code, [e]);
+  }
+
+  const groups: AgencyGroup[] = [];
+  for (const [code, rows] of byCode) {
+    const counts: Record<EntryStatus, number> = {
+      tbd: 0,
+      required: 0,
+      manual_review: 0,
+      ready: 0,
+    };
+    let worst: EntryStatus = "ready";
+    for (const r of rows) {
+      counts[r.status]++;
+      if (STATUS_RANK[r.status] < STATUS_RANK[worst]) worst = r.status;
+    }
+    groups.push({
+      code,
+      name: rows[0].agency_name,
+      entries: rows,
+      worst,
+      counts,
+      actionCount: counts.required + counts.manual_review + counts.tbd,
+    });
+  }
+
+  return groups.sort(
+    (a, b) =>
+      STATUS_RANK[a.worst] - STATUS_RANK[b.worst] ||
+      b.actionCount - a.actionCount ||
+      a.name.localeCompare(b.name),
+  );
+}
+
 export function normalizeSeverity(raw: string): DocumentSeverity {
   if (raw === "required" || raw === "alternative" || raw === "informational") {
     return raw;

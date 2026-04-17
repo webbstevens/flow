@@ -2,7 +2,35 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeSeverity,
   deriveEntryStatus,
+  groupEntriesByAgency,
+  type CatalogEntry,
 } from "@/lib/requirements-v2";
+
+function makeEntry(overrides: Partial<CatalogEntry>): CatalogEntry {
+  return {
+    catalog_code: "C400",
+    title: "CITES permit",
+    form_number: null,
+    description: "",
+    url: null,
+    type: "C",
+    jurisdiction: "EU",
+    agency_code: "DG_ENV",
+    agency_name: "EU DG Environment",
+    triggering_hs_chapters: [],
+    default_severity: "required",
+    triggered: true,
+    applies: true,
+    rationale: "",
+    severity: "required",
+    status: "required",
+    reason: "",
+    annotation_status: null,
+    annotation_source: null,
+    note: null,
+    ...overrides,
+  };
+}
 
 describe("normalizeSeverity", () => {
   it("passes through 'required'", () => {
@@ -119,5 +147,63 @@ describe("deriveEntryStatus — GRYG table (docs/compliance.md)", () => {
       catalogStatus: "verified",
     });
     expect(status).toBe("required");
+  });
+});
+
+describe("groupEntriesByAgency", () => {
+  it("returns [] for no entries", () => {
+    expect(groupEntriesByAgency([])).toEqual([]);
+  });
+
+  it("collapses multiple entries under the same agency_code", () => {
+    const groups = groupEntriesByAgency([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "ready" }),
+      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "ready" }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].entries).toHaveLength(2);
+  });
+
+  it("computes worst-case status using the rank order", () => {
+    const groups = groupEntriesByAgency([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "ready" }),
+      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "tbd" }),
+      makeEntry({ catalog_code: "A3", agency_code: "FDA", status: "manual_review" }),
+    ]);
+    expect(groups[0].worst).toBe("manual_review");
+  });
+
+  it("computes actionCount = required + manual_review + tbd (excludes ready)", () => {
+    const groups = groupEntriesByAgency([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "required" }),
+      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "tbd" }),
+      makeEntry({ catalog_code: "A3", agency_code: "FDA", status: "ready" }),
+    ]);
+    expect(groups[0].actionCount).toBe(2);
+    expect(groups[0].counts).toEqual({
+      required: 1,
+      tbd: 1,
+      ready: 1,
+      manual_review: 0,
+    });
+  });
+
+  it("sorts by worst status first (required before manual_review before tbd before ready)", () => {
+    const groups = groupEntriesByAgency([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", agency_name: "FDA", status: "ready" }),
+      makeEntry({ catalog_code: "A2", agency_code: "EPA", agency_name: "EPA", status: "required" }),
+      makeEntry({ catalog_code: "A3", agency_code: "CPSC", agency_name: "CPSC", status: "manual_review" }),
+    ]);
+    expect(groups.map((g) => g.code)).toEqual(["EPA", "CPSC", "FDA"]);
+  });
+
+  it("within the same worst-status tier, sorts by actionCount desc, then name", () => {
+    const groups = groupEntriesByAgency([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", agency_name: "FDA", status: "required" }),
+      makeEntry({ catalog_code: "A2", agency_code: "EPA", agency_name: "EPA", status: "required" }),
+      makeEntry({ catalog_code: "A3", agency_code: "EPA", agency_name: "EPA", status: "required" }),
+    ]);
+    expect(groups[0].code).toBe("EPA");
+    expect(groups[1].code).toBe("FDA");
   });
 });
