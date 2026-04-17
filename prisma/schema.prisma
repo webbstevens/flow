@@ -241,6 +241,35 @@ model CertificateCatalog {
   @@map("certificate_catalog")
 }
 
+/// Per-lane LLM annotations on certificate_catalog rows. For a given
+/// (HS6, origin, destination) the LLM is shown every triggered catalog
+/// entry and asked "does this apply?" — the result is one row per
+/// catalog entry, not per document. Replaces the freehand
+/// `required_documents` JSON on ClassificationRequirement. See
+/// src/lib/catalog-annotations.ts. (Option C refactor — issue #15.)
+model ClassificationCatalogAnnotation {
+  id                 String    @id @default(uuid()) @db.Uuid
+  hsCodePrefix       String    @map("hs_code_prefix") // 6-digit WCO subheading
+  originCountry      String    @map("origin_country") // ISO2 or "ANY"
+  destinationCountry String    @map("destination_country") // ISO2 or "EU"
+  catalogCode        String    @map("catalog_code") // FK-by-value to certificate_catalog.code
+  llmConfirmed       Boolean   @default(false) @map("llm_confirmed") // LLM thinks this applies for this lane
+  rationale          String // 1-sentence why (or why not)
+  confidence         Int? // 0-100
+  severityOverride   String?   @map("severity_override") // override catalog.defaultSeverity for this lane
+  note               String? // operator-added note surfaced to UI
+  status             String // 'flow_validating' | 'verified' | 'manual_override'
+  source             String // 'llm' | 'manual' | 'uk_trade_tariff' | 'taric' | 'ace'
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  verifiedAt         DateTime? @map("verified_at")
+
+  @@unique([hsCodePrefix, originCountry, destinationCountry, catalogCode])
+  @@index([hsCodePrefix, destinationCountry])
+  @@index([catalogCode])
+  @@map("classification_catalog_annotations")
+}
+
 /// CROSS ruling precedent matches per (HS6, query hash). v1 is a stub — the route
 /// ships returning an empty rulings array behind a "closed beta" notice so clients
 /// can integrate against the stable shape. Real fetcher slots into src/lib/precedents.ts.
