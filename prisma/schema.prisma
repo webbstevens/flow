@@ -267,3 +267,29 @@ model CrossRulingMatch {
   @@index([hsCodePrefix])
   @@map("cross_ruling_matches")
 }
+
+/// Idempotency-key store (VISION.md §4.2). When a write arrives with an
+/// `Idempotency-Key` header, we INSERT a row here keyed on
+/// (workspace_id, method, path, key). Duplicate keys with matching
+/// request hash replay the stored response; mismatched hash returns 422;
+/// in-flight duplicates return 409. Rows expire after 24h; 5xx responses
+/// are not stored (retry should be allowed).
+model IdempotencyKey {
+  id              String    @id @default(uuid()) @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  method          String
+  path            String
+  key             String
+  requestHash     String    @map("request_hash") // sha256 of raw body
+  statusCode      Int?      @map("status_code")
+  responseBody    Json?     @map("response_body")
+  responseHeaders Json?     @map("response_headers")
+  lockedAt        DateTime  @default(now()) @map("locked_at")
+  completedAt    DateTime? @map("completed_at")
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@unique([workspaceId, method, path, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

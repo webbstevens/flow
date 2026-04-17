@@ -14,6 +14,8 @@ export const ErrorCodes = {
   SCRAPE_FAILED: "scrape_failed",
   UPSTREAM_ERROR: "upstream_error",
   INTERNAL_ERROR: "internal_error",
+  IDEMPOTENCY_CONFLICT: "idempotency_conflict",
+  IDEMPOTENCY_IN_PROGRESS: "idempotency_in_progress",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

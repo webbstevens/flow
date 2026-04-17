@@ -2,9 +2,16 @@ import { type NextRequest } from "next/server";
 import { ApiKeyError, requireApiKey } from "./api-auth";
 import { errorResponse } from "./errors";
 import { ErrorCodes } from "./error-codes";
+import {
+  acquireIdempotencyLock,
+  finalizeIdempotencyLock,
+  IDEMPOTENCY_HEADER,
+} from "./idempotency";
 import { checkRateLimit } from "./rate-limit";
 import { generateRequestId, logRequest } from "./request-logger";
 import { incrementUsage } from "./usage";
+
+const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
 interface ApiHandlerOptions {
   /** If true, require a valid API key (bearer auth). Default: false. */
@@ -60,12 +67,45 @@ export function apiHandler<Ctx>(
         }
       }
 
-      const response = await handler(request, ctx, {
+      // Idempotency dedupe — only runs when (a) a workspace is known,
+      // (b) the method is a write, and (c) the client sent a key.
+      const idempotencyKey = request.headers.get(IDEMPOTENCY_HEADER);
+      const idempotencyActive =
+        !!idempotencyKey && !!workspaceId && WRITE_METHODS.has(method);
+      let idempotencyCtx: Parameters<typeof finalizeIdempotencyLock>[0] | null =
+        null;
+
+      if (idempotencyActive && idempotencyKey && workspaceId) {
+        const bodyText = await request.clone().text();
+        idempotencyCtx = {
+          workspaceId,
+          method,
+          path,
+          key: idempotencyKey,
+          requestBody: bodyText,
+          requestId,
+        };
+        const lock = await acquireIdempotencyLock(idempotencyCtx);
+        if (lock.kind === "replay") {
+          statusCode = lock.response.status;
+          return addHeaders(lock.response, requestId);
+        }
+        if (lock.kind === "error") {
+          statusCode = lock.response.status;
+          return addHeaders(lock.response, requestId);
+        }
+      }
+
+      let response = await handler(request, ctx, {
         requestId,
         keyPrefix,
         workspaceId,
       });
       statusCode = response.status;
+
+      if (idempotencyCtx) {
+        response = await finalizeIdempotencyLock(idempotencyCtx, response);
+      }
 
       // Meter successful requests
       if (options.meter && workspaceId && statusCode >= 200 && statusCode < 300) {
