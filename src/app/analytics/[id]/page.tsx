@@ -5,6 +5,7 @@ import { getCurrentUser, getWorkspaceId } from "@/lib/session";
 import { publicUrlForPath } from "@/lib/image-storage";
 import { deriveCompliance } from "@/lib/compliance";
 import { findCachedRequirement } from "@/lib/requirements";
+import { computeDeepReview } from "@/lib/deep-review";
 import { findCachedRationale, hashAttributes } from "@/lib/rationale";
 import { findCachedPrecedents, hashQuery } from "@/lib/precedents";
 import { ComplianceBadge } from "../_components/ComplianceBadge";
@@ -72,6 +73,11 @@ export default async function AnalyticsDetailPage({
         record.destinationCountry,
       )
     : null;
+
+  const deepReview = await computeDeepReview(
+    record.hsCode,
+    record.destinationCountry,
+  );
 
   // Pre-warm the audit accordions from cache — avoids a client-side fetch
   // when we already generated the rationale/precedents earlier. Cache miss
@@ -416,7 +422,10 @@ export default async function AnalyticsDetailPage({
           </ComplianceCard>
 
           {documentation && (
-            <RequirementsCard documentation={documentation} />
+            <RequirementsCard
+              documentation={documentation}
+              deepReview={deepReview}
+            />
           )}
 
           <ComplianceCard title="Source">
