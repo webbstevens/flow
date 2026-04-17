@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 interface Classification {
@@ -308,6 +309,13 @@ export default function ClassifyPage() {
                   <p className="font-sans text-xs text-primary/60 truncate mt-1">
                     {item.source_title ?? item.product_url ?? "Photo upload"}
                   </p>
+                  <Link
+                    href={`/analytics/${item.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-block mt-2 font-sans text-[0.6875rem] font-bold uppercase tracking-widest text-accent hover:underline"
+                  >
+                    View details →
+                  </Link>
                 </div>
               </button>
             ))}
