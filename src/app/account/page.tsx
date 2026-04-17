@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, getWorkspaceId } from "@/lib/session";
+import { getMonthlyUsage, formatEndpoint } from "@/lib/usage";
 import { KeyManager } from "./KeyManager";
 
 export default async function AccountPage() {
@@ -77,19 +78,48 @@ export default async function AccountPage() {
       <KeyManager initialKeys={keys} />
 
       {/* Usage card */}
-      <section className="bg-surface-lowest rounded-3xl p-8 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50">
-            Classifications this month
-          </p>
-          <p className="font-serif italic text-xl text-primary">
-            0 <span className="text-primary/40">/ 5,000</span>
-          </p>
-        </div>
-        <div className="h-2 bg-surface-container rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full" style={{ width: "0%" }} />
-        </div>
-      </section>
+      <UsageSection workspaceId={workspaceId} />
     </main>
+  );
+}
+
+async function UsageSection({ workspaceId }: { workspaceId: string }) {
+  const usage = await getMonthlyUsage(workspaceId);
+  const limit = 5000;
+  const pct = Math.min(100, (usage.total / limit) * 100);
+
+  return (
+    <section className="bg-surface-lowest rounded-3xl p-8 mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-primary/50">
+          API calls this month · {usage.month}
+        </p>
+        <p className="font-serif italic text-xl text-primary">
+          {usage.total.toLocaleString()}{" "}
+          <span className="text-primary/40">/ {limit.toLocaleString()}</span>
+        </p>
+      </div>
+      <div className="h-2 bg-surface-container rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      {Object.keys(usage.breakdown).length > 0 && (
+        <ul className="mt-6 space-y-2">
+          {Object.entries(usage.breakdown).map(([ep, count]) => (
+            <li key={ep} className="flex items-center justify-between">
+              <span className="text-sm text-primary/70">
+                {formatEndpoint(ep)}
+              </span>
+              <span className="font-mono text-sm text-primary">
+                {count.toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

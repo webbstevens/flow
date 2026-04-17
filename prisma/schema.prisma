@@ -95,3 +95,33 @@ model ApiKey {
   @@index([prefix])
   @@map("api_keys")
 }
+
+model RequestLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  requestId   String   @map("request_id")
+  method      String
+  path        String
+  statusCode  Int      @map("status_code")
+  responseMs  Int      @map("response_ms")
+  keyPrefix   String?  @map("key_prefix")
+  workspaceId String?  @map("workspace_id") @db.Uuid
+  errorMsg    String?  @map("error_msg")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@index([keyPrefix])
+  @@map("request_logs")
+}
+
+model UsageCounter {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  month       String // "2026-04" format for easy querying
+  endpoint    String // e.g. "classify", "products.create", "products.list"
+  count       Int    @default(0)
+
+  @@unique([workspaceId, month, endpoint])
+  @@index([workspaceId, month])
+  @@map("usage_counters")
+}

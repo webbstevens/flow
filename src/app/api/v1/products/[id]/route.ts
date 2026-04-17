@@ -2,16 +2,15 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/errors";
 import { updateProductSchema } from "@/lib/validation";
-import { ApiKeyError, requireApiKey } from "@/lib/api-auth";
+import { apiHandler } from "@/lib/api-handler";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await requireApiKey(request);
+export const PATCH = apiHandler(
+  { auth: true, meter: "products.update" },
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+  ) => {
     const { id } = await params;
-
     const body = await request.json();
     const parsed = updateProductSchema.safeParse(body);
 
@@ -29,18 +28,10 @@ export async function PATCH(
 
     const product = await prisma.product.update({
       where: { id },
-      data: {
-        ...parsed.data,
-        requiresReview: false,
-      },
+      data: { ...parsed.data, requiresReview: false },
       include: { variants: true },
     });
 
     return Response.json(product);
-  } catch (err) {
-    if (err instanceof ApiKeyError) return errorResponse(err.message, err.status);
-    const message =
-      err instanceof Error ? err.message : "Internal server error";
-    return errorResponse(message, 500);
   }
-}
+);
