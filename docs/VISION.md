@@ -11,7 +11,7 @@ A peer-to-peer marketplace seller should be able to list a product once, with mi
 
 Today that's impossible for all but enterprise merchants. HS classification, regulatory dossiers, landed-cost math, restricted-party screening, and carrier integrations are each specialist disciplines. Flow's job is to collapse them into a single API surface that a marketplace can embed so any seller — individual or business — inherits enterprise-grade cross-border capability by default.
 
-Flow is an **infrastructure layer**, not a merchant-facing product. Our users are marketplaces and platforms; their users are the sellers and buyers.
+Flow is an **infrastructure layer**, not a merchant-facing product. Our primary consumers are marketplaces and aggregators calling the API on behalf of many sellers; a single large merchant can call the same API for themselves without any special positioning — the only difference is one field (`on_behalf_of` / `seller_id`) on each request. We do not ship a seller-facing login or dashboard.
 
 ---
 
@@ -97,6 +97,7 @@ These are internal rules that keep the surface-area tenets achievable over time.
 - **Audit-grade by default.** Every AI-produced or vendor-derived value carries source + confidence + rationale. Operators can override; overrides are logged.
 - **Reference data in Postgres, not prompts.** Agencies, certificates, tariff schedules, de minimis rules — all queryable tables. LLMs read from them, not the other way around.
 - **Flow is not a system of record for orders.** If a marketplace already has the order graph, we accept it as input and reference it by ID. We own the compliance + customs dossier, not the commerce transaction.
+- **One caller model.** Every request is made by an authenticated consumer acting either as a facilitator for a seller or as the seller itself. The API shape is identical in both cases — a single `on_behalf_of` (or equivalent) field disambiguates. No separate "marketplace API" vs. "merchant API" surfaces.
 - **Each service passes the four-test.** Before adding a service or splitting one, answer: is there a market? Is the data cohesive? Is the caller profile coherent? Is it replaceable at the seam? If any answer is no, rethink the boundary.
 
 ---
@@ -109,6 +110,7 @@ These are internal rules that keep the surface-area tenets achievable over time.
 - **Flow is not a landed-cost insurer (yet).** Quotes today carry a confidence band, not a hard guarantee. See §7.
 - **Flow is not a returns platform.** Returns are out of scope until forward flows are solid.
 - **Flow does not own inventory, warehousing, or fulfillment.**
+- **Flow does not ship a seller-facing UI.** Marketplaces/merchants integrate the API; any seller-facing surface is their own. The Next.js app in this repo is an ops/demo console, not a product.
 
 ---
 
@@ -118,9 +120,8 @@ These gate major design decisions. Flagged rather than pretended-resolved.
 
 1. **Landed-cost guarantee model.** Quote-with-buffer vs. hard guarantee vs. partner-with-insurer (Zonos model). Determines quote-engine accuracy requirements and downstream economics.
 2. **Carrier-adapter priority.** EasyPost first (fastest dev path, public sandbox), Swap OS first (internal dogfooding), or direct carrier (FedEx/UPS — more control, more work). Each implies different economics and timelines.
-3. **Order ownership.** Do marketplaces push orders to Flow, or does Flow receive webhook events from an upstream commerce platform and derive shipments? Determines whether our Shipment table owns commercial terms or references external IDs.
-4. **Merchant-of-record positioning.** Long term: stay infrastructure (MoR stays with marketplace) or offer MoR-as-a-service for platforms that don't want to handle VAT? Massively different regulatory and capital footprint.
-5. **PGA filing path.** White-labeled broker partnership vs. building filer capability. Filer capability requires CBP bonds and legal posture we don't want in V1.
+3. **Merchant-of-record positioning.** Long term: stay infrastructure (MoR stays with marketplace) or offer MoR-as-a-service for platforms that don't want to handle VAT? Massively different regulatory and capital footprint.
+4. **PGA filing path.** White-labeled broker partnership vs. building filer capability. Filer capability requires CBP bonds and legal posture we don't want in V1.
 
 ---
 
