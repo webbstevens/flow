@@ -43,7 +43,7 @@ HS10, country of origin, MID, materials, and per-PGA regulatory attributes requi
 **"Is this ok to ship, and what does it need?"**
 Per-lane dossier, required documents, restricted-party + sanctions screening, declaration-data completeness, GRYG scoring. Combines what were previously separate "dossier" and "screening" concerns because they answer the same meta-question from opposite sides (what's needed vs. what's blocked). Called by Pricing (to decline restricted) and Fulfillment (to block submit).
 
-### 3.3 Pricing *(missing — largest gap)*
+### 3.3 Pricing *(partial — v1 scaffold landed)*
 **"What will this cost landed?"**
 Duty, tax, freight, fees, insurance, FTA eligibility, de minimis awareness. Highest-volume and lowest-latency surface — runs on product-page load for a marketplace browsing experience. Single-point and bulk (one product → all 195 countries) queries. Replaceable by Zonos Landed Cost / Avalara Cross-Border / Hurricane behind an adapter.
 
@@ -81,9 +81,9 @@ Rules any consumer can observe and depend on. Written as constraints on the publ
 |---|---|---|
 | Classification | HS, origin, materials, MID, rationale, precedents | Per-PGA regulatory attributes on Product |
 | Compliance | GRYG bar per classification record + full catalog drawer | Shipment scope, completeness scoring, restricted-party screening |
-| Pricing | — | Entire service (duty / tax / freight / FTA / de-minimis) |
+| Pricing | `POST /v1/landed-cost/quotes` with audit-graded envelope; real DB-backed tax engine (EU VAT, US state sales tax, CA GST/PST/QST/HST, IGST); stub duty / FTA / freight / de-minimis / FX | Quote persistence + retrieval, real duty feeds, per-destination HS codes, FTA rule-of-origin logic, hard guarantee model |
 | Fulfillment | — | Parties, Shipments, canonical compiler, carrier adapters, webhooks |
-| Reference data (shared) | Agencies + certificate catalog (seeded) | Tariff schedules, de-minimis, FTA, country data |
+| Reference data (shared) | Agencies + certificate catalog + tax_rates (seeded) | Tariff schedules, de-minimis, FTA, country data |
 
 ---
 
