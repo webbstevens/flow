@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeSeverity,
   deriveEntryStatus,
-  groupEntriesByAgency,
+  groupEntriesByStatus,
   type CatalogEntry,
 } from "@/lib/requirements-v2";
 
@@ -150,60 +150,54 @@ describe("deriveEntryStatus — GRYG table (docs/compliance.md)", () => {
   });
 });
 
-describe("groupEntriesByAgency", () => {
-  it("returns [] for no entries", () => {
-    expect(groupEntriesByAgency([])).toEqual([]);
+describe("groupEntriesByStatus", () => {
+  it("returns all 4 buckets even when empty, in RGYG order", () => {
+    const buckets = groupEntriesByStatus([]);
+    expect(buckets.map((b) => b.status)).toEqual([
+      "required",
+      "tbd",
+      "manual_review",
+      "ready",
+    ]);
+    for (const b of buckets) expect(b.entries).toEqual([]);
   });
 
-  it("collapses multiple entries under the same agency_code", () => {
-    const groups = groupEntriesByAgency([
-      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "ready" }),
-      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "ready" }),
+  it("routes entries into the correct bucket by status", () => {
+    const buckets = groupEntriesByStatus([
+      makeEntry({ catalog_code: "A1", status: "required" }),
+      makeEntry({ catalog_code: "A2", status: "tbd" }),
+      makeEntry({ catalog_code: "A3", status: "manual_review" }),
+      makeEntry({ catalog_code: "A4", status: "ready" }),
+      makeEntry({ catalog_code: "A5", status: "ready" }),
     ]);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].entries).toHaveLength(2);
+    const [required, tbd, manualReview, ready] = buckets;
+    expect(required.entries.map((e) => e.catalog_code)).toEqual(["A1"]);
+    expect(tbd.entries.map((e) => e.catalog_code)).toEqual(["A2"]);
+    expect(manualReview.entries.map((e) => e.catalog_code)).toEqual(["A3"]);
+    expect(ready.entries.map((e) => e.catalog_code)).toEqual(["A4", "A5"]);
   });
 
-  it("computes worst-case status using the rank order", () => {
-    const groups = groupEntriesByAgency([
-      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "ready" }),
-      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "tbd" }),
-      makeEntry({ catalog_code: "A3", agency_code: "FDA", status: "manual_review" }),
+  it("sorts within a bucket by agency_code then title", () => {
+    const buckets = groupEntriesByStatus([
+      makeEntry({ catalog_code: "A1", agency_code: "FDA", title: "Zeta", status: "required" }),
+      makeEntry({ catalog_code: "A2", agency_code: "EPA", title: "Beta", status: "required" }),
+      makeEntry({ catalog_code: "A3", agency_code: "EPA", title: "Alpha", status: "required" }),
     ]);
-    expect(groups[0].worst).toBe("manual_review");
+    expect(buckets[0].entries.map((e) => e.catalog_code)).toEqual([
+      "A3", // EPA, Alpha
+      "A2", // EPA, Beta
+      "A1", // FDA, Zeta
+    ]);
   });
 
-  it("computes actionCount = required + manual_review + tbd (excludes ready)", () => {
-    const groups = groupEntriesByAgency([
-      makeEntry({ catalog_code: "A1", agency_code: "FDA", status: "required" }),
-      makeEntry({ catalog_code: "A2", agency_code: "FDA", status: "tbd" }),
-      makeEntry({ catalog_code: "A3", agency_code: "FDA", status: "ready" }),
+  it("is stable when all entries land in one bucket (no cross-bucket bleed)", () => {
+    const buckets = groupEntriesByStatus([
+      makeEntry({ catalog_code: "A1", status: "ready" }),
+      makeEntry({ catalog_code: "A2", status: "ready" }),
     ]);
-    expect(groups[0].actionCount).toBe(2);
-    expect(groups[0].counts).toEqual({
-      required: 1,
-      tbd: 1,
-      ready: 1,
-      manual_review: 0,
-    });
-  });
-
-  it("sorts by worst status first (required before manual_review before tbd before ready)", () => {
-    const groups = groupEntriesByAgency([
-      makeEntry({ catalog_code: "A1", agency_code: "FDA", agency_name: "FDA", status: "ready" }),
-      makeEntry({ catalog_code: "A2", agency_code: "EPA", agency_name: "EPA", status: "required" }),
-      makeEntry({ catalog_code: "A3", agency_code: "CPSC", agency_name: "CPSC", status: "manual_review" }),
-    ]);
-    expect(groups.map((g) => g.code)).toEqual(["EPA", "CPSC", "FDA"]);
-  });
-
-  it("within the same worst-status tier, sorts by actionCount desc, then name", () => {
-    const groups = groupEntriesByAgency([
-      makeEntry({ catalog_code: "A1", agency_code: "FDA", agency_name: "FDA", status: "required" }),
-      makeEntry({ catalog_code: "A2", agency_code: "EPA", agency_name: "EPA", status: "required" }),
-      makeEntry({ catalog_code: "A3", agency_code: "EPA", agency_name: "EPA", status: "required" }),
-    ]);
-    expect(groups[0].code).toBe("EPA");
-    expect(groups[1].code).toBe("FDA");
+    expect(buckets[0].entries).toEqual([]); // required
+    expect(buckets[1].entries).toEqual([]); // tbd
+    expect(buckets[2].entries).toEqual([]); // manual_review
+    expect(buckets[3].entries).toHaveLength(2); // ready
   });
 });

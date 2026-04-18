@@ -33,6 +33,21 @@ import {
   type CatalogAnnotation,
   type AnnotationInput,
 } from "@/lib/catalog-annotations";
+import {
+  groupEntriesByStatus,
+  normalizeSeverity,
+  deriveEntryStatus,
+  type CatalogEntry,
+  type EntryStatus,
+  type StatusBucket,
+} from "@/lib/requirement-groups";
+
+export {
+  groupEntriesByStatus,
+  normalizeSeverity,
+  deriveEntryStatus,
+};
+export type { CatalogEntry, EntryStatus, StatusBucket };
 
 /** Extended envelope — adds `catalog_entries` on top of the legacy shape. */
 export interface UnifiedEnvelope extends RequirementEnvelope {
@@ -45,130 +60,6 @@ export interface UnifiedEnvelope extends RequirementEnvelope {
   };
   agencies_reviewed: number;
   total_regulations: number;
-}
-
-export type EntryStatus = "tbd" | "required" | "manual_review" | "ready";
-
-export interface CatalogEntry {
-  catalog_code: string;
-  title: string;
-  form_number: string | null;
-  description: string;
-  url: string | null;
-  type: string; // TARIC code
-  jurisdiction: string;
-  agency_code: string;
-  agency_name: string;
-  triggering_hs_chapters: number[];
-  default_severity: string;
-
-  // Annotation-derived
-  triggered: boolean;
-  applies: boolean;
-  rationale: string;
-  severity: DocumentSeverity;
-  status: EntryStatus;
-  reason: string;
-  annotation_status: CatalogAnnotation["status"] | null;
-  annotation_source: CatalogAnnotation["source"] | null;
-  note: string | null;
-}
-
-export interface AgencyGroup {
-  code: string;
-  name: string;
-  entries: CatalogEntry[];
-  worst: EntryStatus;
-  counts: Record<EntryStatus, number>;
-  actionCount: number;
-}
-
-export const STATUS_RANK: Record<EntryStatus, number> = {
-  required: 0,
-  manual_review: 1,
-  tbd: 2,
-  ready: 3,
-};
-
-export function groupEntriesByAgency(entries: CatalogEntry[]): AgencyGroup[] {
-  const byCode = new Map<string, CatalogEntry[]>();
-  for (const e of entries) {
-    const existing = byCode.get(e.agency_code);
-    if (existing) existing.push(e);
-    else byCode.set(e.agency_code, [e]);
-  }
-
-  const groups: AgencyGroup[] = [];
-  for (const [code, rows] of byCode) {
-    const counts: Record<EntryStatus, number> = {
-      tbd: 0,
-      required: 0,
-      manual_review: 0,
-      ready: 0,
-    };
-    let worst: EntryStatus = "ready";
-    for (const r of rows) {
-      counts[r.status]++;
-      if (STATUS_RANK[r.status] < STATUS_RANK[worst]) worst = r.status;
-    }
-    groups.push({
-      code,
-      name: rows[0].agency_name,
-      entries: rows,
-      worst,
-      counts,
-      actionCount: counts.required + counts.manual_review + counts.tbd,
-    });
-  }
-
-  return groups.sort(
-    (a, b) =>
-      STATUS_RANK[a.worst] - STATUS_RANK[b.worst] ||
-      b.actionCount - a.actionCount ||
-      a.name.localeCompare(b.name),
-  );
-}
-
-export function normalizeSeverity(raw: string): DocumentSeverity {
-  if (raw === "required" || raw === "alternative" || raw === "informational") {
-    return raw;
-  }
-  // 'conditional' maps to 'alternative' at the envelope boundary
-  if (raw === "conditional") return "alternative";
-  return "required";
-}
-
-export function deriveEntryStatus(args: {
-  triggered: boolean;
-  applies: boolean;
-  severity: DocumentSeverity;
-  annotationStatus: CatalogAnnotation["status"] | null;
-  catalogStatus: string;
-}): { status: EntryStatus; reason: string } {
-  const { triggered, applies, severity, annotationStatus, catalogStatus } = args;
-
-  if (!triggered) {
-    return { status: "ready", reason: "Not applicable to this HS chapter" };
-  }
-  if (!applies) {
-    return {
-      status: "ready",
-      reason: "Triggered by chapter but not applicable to this product",
-    };
-  }
-  if (catalogStatus === "flow_validating" && annotationStatus !== "verified") {
-    return { status: "tbd", reason: "Rule still being validated" };
-  }
-  if (severity === "informational") {
-    return { status: "ready", reason: "Informational only" };
-  }
-  if (severity === "alternative") {
-    return {
-      status: "manual_review",
-      reason: "One of a set — operator review needed",
-    };
-  }
-  return { status: "required", reason: "Required — no submission on file" };
 }
 
 export async function buildUnifiedEnvelope(
