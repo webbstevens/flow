@@ -268,6 +268,31 @@ model CrossRulingMatch {
   @@map("cross_ruling_matches")
 }
 
+/// Tax rate table for the Landed Cost service (VISION.md §3.3). One row per
+/// (country, region?, locality?, kind). VAT/GST countries have one row; US has
+/// one per state; Canada has one per province (combined rate). `basis` names
+/// the tax base (CIF, CIF+duty, FOB). `hs_scope` is nullable — non-null rows
+/// apply only to specific HS chapters (India IGST v2 use-case).
+model TaxRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  country       String // ISO-3166-1 alpha-2
+  regionCode    String?  @map("region_code") // ISO-3166-2 subdivision (e.g. "CA", "ON", "QC")
+  localityCode  String?  @map("locality_code") // city/county for US v2; null in v1
+  kind          String // 'VAT' | 'GST' | 'HST' | 'PST' | 'QST' | 'SALES_TAX' | 'LOCAL_TAX' | 'IGST' | 'CONSUMPTION' | 'NONE'
+  ratePct       Decimal  @map("rate_pct") @db.Decimal(6, 4) // 19.0000, 7.2500
+  basis         String   @default("CIF") // 'CIF' | 'CIF_PLUS_DUTY' | 'FOB' | 'TRANSACTION'
+  hsScope       Json?    @map("hs_scope") // null = all HS; ["01".."98"] = restricted
+  status        String // 'flow_validating' | 'verified' | 'manual_override'
+  source        String // 'manual' | 'vatlive_v1' | 'taxjar_v1' | ...
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  verifiedAt    DateTime? @map("verified_at")
+
+  @@unique([country, regionCode, localityCode, kind])
+  @@index([country])
+  @@map("tax_rates")
+}
+
 /// Idempotency-key store (VISION.md §4.2). When a write arrives with an
 /// `Idempotency-Key` header, we INSERT a row here keyed on
 /// (workspace_id, method, path, key). Duplicate keys with matching
