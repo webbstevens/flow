@@ -387,6 +387,49 @@ export const precedentsResponseSchema = z
   })
   .meta({ id: "PrecedentsResponse" });
 
+// ---------------------------------------------------------------------------
+// Landed Cost (VISION.md §3.3)
+// ---------------------------------------------------------------------------
+
+const moneySchema = z.object({
+  amount: z.number().nonnegative(),
+  currency: z.string().length(3).toUpperCase(),
+});
+
+const freightModeSchema = z.enum(["express", "standard", "economy"]);
+
+const landedCostDestinationSchema = z.object({
+  country: z.string().length(2).toUpperCase(),
+  region: z.string().min(1).max(10).toUpperCase().optional(),
+  postal_code: z.string().min(1).max(16).optional(),
+});
+
+export const landedCostRequestSchema = z
+  .object({
+    product: z.object({
+      hs_code: z.string().min(6).max(14),
+      country_of_origin: z.string().length(2).toUpperCase(),
+      declared_value: moneySchema,
+      weight_kg: z.number().positive().optional(),
+      dimensions_cm: z
+        .object({
+          l: z.number().positive(),
+          w: z.number().positive(),
+          h: z.number().positive(),
+        })
+        .optional(),
+    }),
+    destinations: z.array(landedCostDestinationSchema).min(1).max(200),
+    origin: z.object({ country: z.string().length(2).toUpperCase() }).optional(),
+    incoterm: z.enum(["DDP", "DDU", "DAP"]).optional(),
+    freight_mode: freightModeSchema.optional(),
+    buyer_currency: z.string().length(3).toUpperCase().optional(),
+    on_behalf_of: z.string().min(1).max(128).optional(),
+  })
+  .meta({ id: "LandedCostRequest" });
+
+export type LandedCostRequestInput = z.infer<typeof landedCostRequestSchema>;
+
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ClassifyRequest = z.infer<typeof classifyRequestSchema>;
