@@ -65,7 +65,6 @@ export function RequirementsCard({ unified }: { unified: UnifiedEnvelope }) {
 
       {openStatus && (
         <BucketPanel
-          status={openStatus}
           entries={
             buckets.find((b) => b.status === openStatus)?.entries ?? []
           }
@@ -154,10 +153,8 @@ function StatusChip({
 }
 
 function BucketPanel({
-  status,
   entries,
 }: {
-  status: EntryStatus;
   entries: CatalogEntry[];
 }) {
   if (entries.length === 0) return null;

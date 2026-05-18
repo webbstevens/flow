@@ -73,8 +73,9 @@ export async function GET(request: NextRequest) {
 
     cookieStore.delete("flow_ws");
     return NextResponse.redirect(`${origin}${next}`);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Auth callback error:", err);
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(err.message || String(err))}`);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
   }
 }
