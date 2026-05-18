@@ -26,7 +26,6 @@ import {
   type RequirementStatus,
   type RequirementSource,
   type RequirementWarning,
-  type DocumentSeverity,
 } from "@/lib/requirements";
 import {
   getOrInferAnnotations,
