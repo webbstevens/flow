@@ -39,7 +39,15 @@ interface ClassificationEnvelope {
 type Mode = "url" | "photo";
 
 export default function ClassifyPage() {
+  // Default to Photo on touch/mobile devices, URL on desktop.
+  // Runs after hydration to avoid SSR mismatch.
   const [mode, setMode] = useState<Mode>("url");
+  useEffect(() => {
+    const isMobile =
+      window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+      window.innerWidth < 768;
+    if (isMobile) setMode("photo");
+  }, []);
   const [url, setUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
@@ -258,6 +266,14 @@ export default function ClassifyPage() {
             Error
           </p>
           <p className="font-sans text-sm text-primary mt-2">{error}</p>
+          {error.includes("blocked") && mode === "url" && (
+            <button
+              onClick={() => { setMode("photo"); setError(null); }}
+              className="mt-3 font-sans text-xs font-bold uppercase tracking-widest text-accent hover:underline"
+            >
+              Switch to Photo mode →
+            </button>
+          )}
         </section>
       )}
 
