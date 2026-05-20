@@ -7,8 +7,26 @@
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_HTML_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+// Realistic Chrome UA — many retailers (eBay, Amazon, etc.) block anything
+// that declares itself as a bot or uses a non-browser UA string.
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; FlowBot/1.0; +https://flow.example/bot)";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+
+// Headers a real Chrome browser sends on a navigation request.
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent": USER_AGENT,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 export interface ScrapedProduct {
   title?: string;
@@ -47,14 +65,17 @@ async function fetchHtml(url: string): Promise<string> {
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-      },
+      headers: BROWSER_HEADERS,
       signal: controller.signal,
       redirect: "follow",
     });
     if (!res.ok) {
+      if (res.status === 403 || res.status === 429) {
+        throw new Error(
+          `${new URL(url).hostname} blocked the request (${res.status}). ` +
+          `Try switching to Photo mode — take or upload a photo of the product instead.`
+        );
+      }
       throw new Error(`Failed to fetch URL (status ${res.status})`);
     }
     const contentType = res.headers.get("content-type") ?? "";
