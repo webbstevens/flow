@@ -38,6 +38,45 @@ interface ClassificationEnvelope {
 
 type Mode = "url" | "photo";
 
+// Phone photos are multi-megabyte. Sending the raw data URL overflows the
+// platform proxy's request-body limit — the POST is dropped before it reaches
+// the API and the browser reports "Failed to fetch". Cap the long edge at
+// 1568px (the max resolution Claude vision uses) and re-encode as JPEG: a 4MB
+// photo becomes a few hundred KB with no loss of classification quality.
+const MAX_IMAGE_EDGE = 1568;
+const JPEG_QUALITY = 0.85;
+
+function downscaleImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(
+        1,
+        MAX_IMAGE_EDGE / Math.max(img.width, img.height),
+      );
+      const width = Math.round(img.width * scale);
+      const height = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas not supported"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image"));
+    };
+    img.src = objectUrl;
+  });
+}
+
 export default function ClassifyPage() {
   // Default to Photo on touch/mobile devices, URL on desktop.
   // Runs after hydration to avoid SSR mismatch.
@@ -71,16 +110,20 @@ export default function ClassifyPage() {
     }
   }
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageDataUrl(reader.result as string);
-      setResult(null);
-      setError(null);
-    };
-    reader.readAsDataURL(file);
+    setResult(null);
+    setError(null);
+    try {
+      setImageDataUrl(await downscaleImage(file));
+    } catch {
+      // Fallback: if the browser can't decode the image (e.g. an exotic
+      // format), send the original rather than blocking the user.
+      const reader = new FileReader();
+      reader.onload = () => setImageDataUrl(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   }
 
   async function submitClassification(payload: Record<string, unknown>) {
