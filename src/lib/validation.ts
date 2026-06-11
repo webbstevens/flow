@@ -82,7 +82,10 @@ export const classifyRequestSchema = z
     originCountry: iso2Country,
     destinationCountry: iso2Country,
     images: z
-      .array(z.string().min(1))
+      // ~4M chars ≈ 3MB decoded — generous headroom over a client-downscaled
+      // 1568px JPEG (a few hundred KB), but rejects raw multi-MB phone photos
+      // with a clean error instead of a slow/opaque failure downstream.
+      .array(z.string().min(1).max(4_000_000))
       .meta({
         description: "Base64 data URLs or HTTPS image URLs",
         example: ["data:image/jpeg;base64,/9j/..."],
