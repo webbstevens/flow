@@ -10,9 +10,12 @@ const nextConfig: NextConfig = {
   // detect the mismatch on navigation and perform a hard reload (fetching the
   // current build) instead of a dead client-side navigation. It also appends
   // ?dpl=<id> to asset URLs for cache busting.
-  // Railway injects these at build time; falls back to undefined locally.
+  // The ID MUST be identical at build time and runtime, or the client sees a
+  // mismatch on every navigation and hard-reloads each time. RAILWAY_GIT_COMMIT_SHA
+  // is the one Railway value present and stable in both phases — do NOT use
+  // RAILWAY_DEPLOYMENT_ID, which is runtime-only here and differs from the build.
+  // Falls back to undefined locally (skew protection off, normal soft-nav).
   deploymentId:
-    process.env.RAILWAY_DEPLOYMENT_ID ||
     process.env.RAILWAY_GIT_COMMIT_SHA ||
     process.env.NEXT_DEPLOYMENT_ID ||
     undefined,
