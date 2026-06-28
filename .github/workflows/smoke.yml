@@ -5,8 +5,10 @@ name: smoke
 # classify pipeline. Catches environment drift the test suite can't.
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # Manual-only for now (run from the Actions tab). Re-enable continuous
+  # monitoring once the backend is restored by uncommenting the schedule:
+  #   schedule:
+  #     - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
