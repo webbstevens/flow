@@ -1,0 +1,31 @@
+name: smoke
+
+# Production health monitor. Fails (→ GitHub notification) when the deployed
+# app can't reach its database — the exact outage that silently killed the
+# classify pipeline. Catches environment drift the test suite can't.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  prod-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production /api/health
+        env:
+          HEALTH_URL: https://gtcflow.up.railway.app/api/health
+        run: |
+          set -euo pipefail
+          resp=$(curl -sS -m 25 -w $'\n%{http_code}' "$HEALTH_URL")
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d')
+          echo "HTTP $code"
+          echo "$body"
+          db=$(printf '%s' "$body" | jq -r '.checks.db // "missing"')
+          if [ "$code" != "200" ] || [ "$db" != "ok" ]; then
+            echo "::error::Production health check failed (HTTP $code, db=$db)"
+            exit 1
+          fi
+          echo "Production healthy (db=$db)."
