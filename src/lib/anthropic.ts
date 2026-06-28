@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { downloadImage } from "@/lib/scraper";
 
 const ClassificationSchema = z.object({
   hs_code: z
@@ -89,8 +90,9 @@ export async function classifyWithClaude(
   const content: Anthropic.ContentBlockParam[] = [];
 
   if (input.images?.length) {
-    for (const img of input.images) {
-      content.push(buildImageBlock(img));
+    const blocks = await Promise.all(input.images.map(toImageBlock));
+    for (const block of blocks) {
+      if (block) content.push(block);
     }
   }
 
@@ -116,7 +118,29 @@ export async function classifyWithClaude(
   return result;
 }
 
-function buildImageBlock(img: string): Anthropic.ImageBlockParam {
+const SUPPORTED_IMAGE_MEDIA = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+] as const;
+type SupportedImageMedia = (typeof SUPPORTED_IMAGE_MEDIA)[number];
+
+/**
+ * Build a Claude image block from a data URL or a remote image.
+ *
+ * Anthropic's `url` image source ONLY accepts HTTPS — handing it any other
+ * scheme fails the entire request with "Only HTTPS URLs are supported." So:
+ *   - data: URL  → inline as base64
+ *   - https://   → pass straight through as a url source
+ *   - anything else (http://, protocol-relative, …) → fetch server-side and
+ *     inline as base64
+ * Returns null for an image we can't fetch or whose type Claude doesn't accept,
+ * so one bad image never sinks the whole classification.
+ */
+export async function toImageBlock(
+  img: string,
+): Promise<Anthropic.ImageBlockParam | null> {
   if (img.startsWith("data:")) {
     const { mediaType, data } = parseDataUrl(img);
     return {
@@ -124,11 +148,28 @@ function buildImageBlock(img: string): Anthropic.ImageBlockParam {
       source: { type: "base64", media_type: mediaType, data },
     };
   }
-  // Assume HTTPS URL — Anthropic SDK supports url-type image sources.
-  return {
-    type: "image",
-    source: { type: "url", url: img },
-  };
+
+  if (img.startsWith("https://")) {
+    return { type: "image", source: { type: "url", url: img } };
+  }
+
+  try {
+    const { buffer, contentType } = await downloadImage(img);
+    const mediaType = contentType.split(";")[0].trim().toLowerCase();
+    if (!(SUPPORTED_IMAGE_MEDIA as readonly string[]).includes(mediaType)) {
+      return null;
+    }
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mediaType as SupportedImageMedia,
+        data: buffer.toString("base64"),
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseDataUrl(input: string): {
